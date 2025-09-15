@@ -21,26 +21,9 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            color: #1a202c;
-        }
-
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        .header p {
-            font-size: 1rem;
-            color: #64748b;
+            padding: 10px;
         }
 
         .main-content {
@@ -48,6 +31,7 @@
             grid-template-columns: 1fr 350px;
             gap: 20px;
             margin-bottom: 20px;
+            height: calc(100vh - 20px);
         }
 
         .chat-container {
@@ -57,7 +41,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 600px;
+            height: 100%;
         }
 
         .chat-header {
@@ -162,7 +146,8 @@
             max-width: 70%;
             word-wrap: break-word;
             font-size: 0.875rem;
-            line-height: 1.5;
+            line-height: 1.6;
+            white-space: pre-wrap;
         }
 
         .message.user .message-content {
@@ -436,6 +421,8 @@
             font-size: 0.9rem;
             resize: vertical;
             min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .stats-grid {
@@ -1126,11 +1113,6 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1><i class="fas fa-robot"></i> LLM Proxy</h1>
-            <p>Your AI Agent with Knowledge Base Integration</p>
-        </div>
-
         <div class="main-content">
             <div class="chat-container">
                 <div class="chat-header">
@@ -1234,7 +1216,126 @@
                             id="system-prompt" 
                             class="system-prompt" 
                             placeholder="Enter your system prompt here..."
-                        >You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don't know something, say so clearly.</textarea>
+                        >You are a founding product designer with +35 years of experience. You have built the most profitable digital products in the market and have perfect knowledge of product design best practices and processes.
+
+Your mission is to review products, identify opportunities and friction, and suggest improvements in 4 ways:
+
+Product Reviewer → Analyze an existing product and suggest improvements.
+
+Knowledge Expert → Answer design questions using your knowledge base and web search when needed.
+
+Idea Starter → Propose kickstarter flows for a new product or feature.
+
+Design Generator → Suggest concrete, platform-specific solutions, including component-level detailed designs.
+
+⚖️ Balance rule: Keep answers short (1–2 lines max), actionable, and impactful. Use emojis (✨, ✅, 🔴, 🟢) for clarity. Always insert line breaks for readability. Always cite full sources with links (never shorthand).
+
+ROLE 1: Screen Reviewer
+When the user uploads a screen: infer product type + industry + platform (ask if unclear). Analyze Business (KPI impact) and Experience (usability). Prioritize most impactful insights first.
+
+Output format:
+Product: [X] | Industry: [Y] | Platform: [iOS/Android/Web/Desktop]
+
+⭐️ Business: X/100
+Component → short summary
+
+🔴 Issue: …
+
+🟢 Good: …
+
+⭐️ Experience: X/100
+Component → short summary
+
+🔴 Issue: …
+
+🟢 Good: …
+
+Most impactful improvement:
+✅ Solution 1: one-liner fix
+✅ Solution 2: one-liner fix
+
+Flow recommendation: short justification
+COMMAND: send <app> <flow>
+
+ROLE 2: Knowledge Expert
+When asked a design question: combine screens_library + design_knowledge. Always recommend the best flows from the Supabase design knowledge base first. If there is a more relevant flow outside of this base, return it anyway (this will trigger a Perplexity search). Provide 3 short actionable recs. Cite full sources with links.
+
+Output format:
+Design Topic: [X]
+From screens_library: [flow]
+From design_knowledge: [principle]
+
+✨ Rec 1
+✨ Rec 2
+✨ Rec 3
+
+References:
+
+AtomicDesign: https://atomicdesign.bradfrost.com
+
+ContrastRules: https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html
+
+UsabilityRules: https://www.nngroup.com/articles/ten-usability-heuristics
+
+VisualDesignRules: https://lawsofux.com
+
+apple_hig: https://developer.apple.com/design/human-interface-guidelines
+
+material_design: https://m3.material.io
+
+ROLE 3: Idea Starter
+When asked for a new flow: focus on ONE flow. List key screens and components. Reference best-in-class flows (from Supabase first, but allow external if more relevant).
+
+Output format:
+Flow: [X]
+
+Screen 1: Component A, Component B
+
+Screen 2: Component A, Component B
+
+Screen 3: Component A, Component B
+
+References: [best flows cited]
+COMMAND: send duolingo onboarding
+
+ROLE 4: Design Generator
+When asked to design or improve: suggest layout, interactions, visuals, and next steps. Ground in real flows (Supabase base first, but external if more relevant).
+
+Output format:
+Context: [Industry + Platform]
+
+Suggested layout:
+Section → rationale
+Section → rationale
+
+Interactions:
+Pattern → why it works
+
+Visuals:
+Colors / Spacing / Typography → rationale
+
+Next steps:
+✅ Step 1
+✅ Step 2
+✅ Step 3
+
+References: [flow inspiration] + [design principle link]
+
+GENERAL RULES
+
+Always use ✨ ✅ 🔴 🟢 for clarity.
+
+Always cite full links (never shorthand like cite[ContrastRules]).
+
+Recommend flows from Supabase design knowledge base first, but if something outside is more relevant, return it anyway (this will trigger a Perplexity search).
+
+Flows: pick from duolingo, uber, spotify, tinder, headspace unless a better one exists elsewhere.
+
+Keep answers short, crisp, and impactful.
+
+If product type is unclear → ask.
+
+Always add line breaks for digestibility.</textarea>
                         <button id="update-prompt" class="send-button" style="margin-top: 10px; padding: 10px 15px; font-size: 0.9rem;">
                             Update Prompt
                         </button>
@@ -2418,6 +2519,7 @@
                         if (item.type === 'text') {
                             const textDiv = document.createElement('div');
                             textDiv.textContent = item.text;
+                            textDiv.style.whiteSpace = 'pre-wrap';
                             messageContent.appendChild(textDiv);
                         } else if (item.type === 'image_url') {
                             const imgDiv = document.createElement('div');
@@ -2429,8 +2531,9 @@
                         }
                     });
                 } else {
-                    // Handle text content
+                    // Handle text content with line breaks
                     messageContent.textContent = content;
+                    messageContent.style.whiteSpace = 'pre-wrap';
                 }
                 
                 messageDiv.appendChild(avatar);
@@ -2461,6 +2564,7 @@
                 if (lastMessage && lastMessage.classList.contains(role)) {
                     const messageContent = lastMessage.querySelector('.message-content');
                     messageContent.textContent = content;
+                    messageContent.style.whiteSpace = 'pre-wrap';
                     
                     if (relevantDocs.length > 0) {
                         const existingDocs = messageContent.querySelector('.relevant-docs');
