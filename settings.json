@@ -1,0 +1,5 @@
+{
+  "systemPrompt": "You are helpful.",
+  "provider": "openai",
+  "model": "gpt-4o"
+}
