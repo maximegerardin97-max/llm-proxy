@@ -1442,9 +1442,11 @@
                     sbUrl = 'https://iiolvvdnzrfcffudwocp.supabase.co';
                     sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw';
                     sbBucket = 'flows';
+                    const sbFn = 'https://iiolvvdnzrfcffudwocp.functions.supabase.co/chat';
                     localStorage.setItem('sbUrl', sbUrl);
                     localStorage.setItem('sbKey', sbKey);
                     localStorage.setItem('sbBucket', sbBucket);
+                    localStorage.setItem('sbChat', sbFn);
                 }
             } catch (_) {}
             if (params.get('sbUrl')) localStorage.setItem('sbUrl', sbUrl);
@@ -2235,11 +2237,10 @@
                 this.isStreaming = true;
 
                 try {
-                    const response = await fetch('/api/chat/stream', {
+                    const { url: chatUrl, headers: chatHeaders } = this.getChatEndpointAndHeaders();
+                    const response = await fetch(chatUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: chatHeaders,
                         body: JSON.stringify({
                             message: messageContent,
                             provider: this.currentProvider || undefined,
@@ -2289,6 +2290,46 @@
                     this.showLoading(false);
                     this.isStreaming = false;
                 }
+            }
+
+            getChatEndpointAndHeaders() {
+                // If Supabase static mode is configured, prefer Edge Function
+                const sbUrl = (localStorage.getItem('sbUrl') || '').replace(/\/$/, '');
+                const sbKey = localStorage.getItem('sbKey') || '';
+                const configuredFn = localStorage.getItem('sbChat') || '';
+                // Derive functions domain from project URL if needed
+                const deriveFunctionsBase = (projectUrl) => {
+                    if (!projectUrl) return '';
+                    if (projectUrl.includes('.functions.supabase.co')) return projectUrl.replace(/\/$/, '');
+                    try {
+                        const u = new URL(projectUrl);
+                        const host = u.host.replace('.supabase.co', '.functions.supabase.co');
+                        return `https://${host}`;
+                    } catch (_) {
+                        return projectUrl;
+                    }
+                };
+                // Default to project chat function if URL is known
+                const fnBase = deriveFunctionsBase(sbUrl);
+                const defaultFn = fnBase ? `${fnBase}/chat` : '';
+                const fnUrl = configuredFn || defaultFn;
+                if (fnUrl && sbKey) {
+                    return {
+                        url: fnUrl,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sbKey}`,
+                            'apikey': sbKey
+                        }
+                    };
+                }
+                // Fallback to local/backend endpoint
+                return {
+                    url: '/api/chat/stream',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
             }
 
             addMessage(role, content, relevantDocs = []) {
