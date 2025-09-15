@@ -1477,6 +1477,7 @@
                 this.isStreaming = false;
                 this.selectedImages = [];
                 this.supabaseClient = (window.__SB && window.__SB.client) ? window.__SB.client : null;
+                this.kbListenersBound = false;
                 this.initializeEventListeners();
                 this.loadProviders();
                 this.loadKnowledge();
@@ -1721,9 +1722,17 @@
             }
 
             async showSettings() {
-                await this.loadApiKeys();
-                await this.loadKnowledgeBaseInfo();
+                // Open immediately to avoid lag
                 document.getElementById('settings-modal').classList.add('show');
+                // Ensure listeners for KB UI are bound once
+                if (!this.kbListenersBound) {
+                    try { this.setupKnowledgeBaseEventListeners(); } catch (_) {}
+                    try { this.setupUploadEventListeners(); } catch (_) {}
+                    this.kbListenersBound = true;
+                }
+                // Load data in background
+                this.loadApiKeys().catch(() => {});
+                this.loadKnowledgeBaseInfo().catch(() => {});
             }
 
             hideSettings() {
