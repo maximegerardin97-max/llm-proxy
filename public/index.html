@@ -1561,6 +1561,14 @@
                     }
                 } catch (error) {
                     console.error('Failed to load providers:', error);
+                    // Fallback static providers for GitHub Pages/static mode
+                    this.providers = [
+                        { name: 'openai', displayName: 'OpenAI', logo: '🤖', description: "OpenAI's models.", bestModel: 'gpt-4o', models: ['gpt-4o','gpt-4o-mini','o4-mini'] },
+                        { name: 'anthropic', displayName: 'Anthropic', logo: '🧠', description: "Anthropic's models.", bestModel: 'claude-3-5-sonnet-20241022', models: ['claude-3-5-sonnet-20241022','claude-3-5-haiku-20241022'] },
+                        { name: 'mistral', displayName: 'Mistral', logo: '🌊', description: "Mistral models.", bestModel: 'mistral-large-latest', models: ['mistral-large-latest','pixtral-large-latest'] },
+                        { name: 'google', displayName: 'Google', logo: '⭐', description: "Google Gemini models.", bestModel: 'gemini-2.5-pro', models: ['gemini-2.5-pro','gemini-1.5-flash'] }
+                    ];
+                    this.populateModelSelector();
                 }
             }
 
@@ -1773,29 +1781,47 @@
 
             async searchKnowledgeBase(query) {
                 try {
-                    const response = await fetch(`/api/knowledge/search?q=${encodeURIComponent(query)}&limit=10`);
-                    const data = await response.json();
-                    
                     const resultsContainer = document.getElementById('kb-search-results');
                     resultsContainer.innerHTML = '';
-                    
-                    if (data.results.length === 0) {
-                        resultsContainer.innerHTML = '<div class="search-result-item">No results found</div>';
-                        return;
+
+                    if (this.supabaseClient) {
+                        const all = await this.supabaseListAll('');
+                        const q = query.toLowerCase();
+                        const matches = all.filter(f => f.path.toLowerCase().includes(q)).slice(0, 50);
+                        if (matches.length === 0) {
+                            resultsContainer.innerHTML = '<div class="search-result-item">No results found</div>';
+                            return;
+                        }
+                        matches.forEach(doc => {
+                            const el = document.createElement('div');
+                            el.className = 'search-result-item';
+                            el.innerHTML = `
+                                <div class="search-result-title">${doc.path}</div>
+                                <div class="search-result-description">${(doc.mime || 'file').toUpperCase()} • ${(doc.size / 1024).toFixed(1)} KB</div>
+                                <div class="search-result-meta">Last modified: ${doc.updated ? new Date(doc.updated).toLocaleString() : 'n/a'}</div>
+                            `;
+                            resultsContainer.appendChild(el);
+                        });
+                    } else {
+                        const response = await fetch(`/api/knowledge/search?q=${encodeURIComponent(query)}&limit=10`);
+                        const data = await response.json();
+                        if (!data.results || data.results.length === 0) {
+                            resultsContainer.innerHTML = '<div class="search-result-item">No results found</div>';
+                            return;
+                        }
+                        data.results.forEach(result => {
+                            const resultElement = document.createElement('div');
+                            resultElement.className = 'search-result-item';
+                            resultElement.innerHTML = `
+                                <div class="search-result-title">${result.title || result.filename || 'Untitled'}</div>
+                                <div class="search-result-description">${result.description || result.text?.substring(0, 100) || 'No description'}</div>
+                                <div class="search-result-meta">
+                                    ID: ${result.id} | Type: ${result.type} | Created: ${new Date(result.created_at).toLocaleDateString()}
+                                </div>
+                            `;
+                            resultsContainer.appendChild(resultElement);
+                        });
                     }
-                    
-                    data.results.forEach(result => {
-                        const resultElement = document.createElement('div');
-                        resultElement.className = 'search-result-item';
-                        resultElement.innerHTML = `
-                            <div class="search-result-title">${result.title || result.filename || 'Untitled'}</div>
-                            <div class="search-result-description">${result.description || result.text?.substring(0, 100) || 'No description'}</div>
-                            <div class="search-result-meta">
-                                ID: ${result.id} | Type: ${result.type} | Created: ${new Date(result.created_at).toLocaleDateString()}
-                            </div>
-                        `;
-                        resultsContainer.appendChild(resultElement);
-                    });
                 } catch (error) {
                     console.error('Failed to search knowledge base:', error);
                     const resultsContainer = document.getElementById('kb-search-results');
@@ -2014,42 +2040,18 @@
                 resultsContainer.innerHTML = '';
 
                 try {
-                    const formData = new FormData();
-                    formData.append('uploadType', uploadType);
-                    if (uploadType === 'flow') {
-                        formData.append('flowName', flowName);
-                    }
-                    
-                    // Normalize and include relative paths in the filename part of FormData
-                    const prefix = uploadType === 'handbook' ? 'handbooks/' : (uploadType === 'flow' ? `${flowName}/` : '');
-                    allFiles.forEach((file) => {
-                        const relativePath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) ? file.webkitRelativePath : file.name;
-                        const sanitized = relativePath.replace(/^\/+/, '');
-                        const finalPath = prefix && !sanitized.startsWith(prefix) ? `${prefix}${sanitized}` : sanitized;
-                        formData.append('files', file, finalPath);
-                    });
-
-                    const response = await fetch('/api/knowledge/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
+                    if (this.supabaseClient) {
+                        const prefix = uploadType === 'handbook' ? 'handbooks/' : (uploadType === 'flow' ? `${flowName}/` : '');
+                        const uploaded = await this.supabaseUploadFiles(allFiles, prefix);
                         resultsContainer.innerHTML = `
                             <div class="success">
                                 <i class="fas fa-check-circle"></i>
-                                Successfully uploaded ${result.uploadedCount} file(s)!
+                                Successfully uploaded ${uploaded} file(s)!
                                 ${uploadType === 'flow' ? `Flow "${flowName}" created.` : 'Files added to handbooks folder.'}
                             </div>
                         `;
                         resultsContainer.className = 'upload-results success';
-                        
-                        // Refresh stats
                         await this.loadKnowledgeBaseStats();
-                        
-                        // Clear form
                         fileUpload.value = '';
                         folderUpload.value = '';
                         document.getElementById('selected-files-count').textContent = '';
@@ -2057,7 +2059,28 @@
                         if (folderHint) folderHint.textContent = '';
                         document.getElementById('flow-name-input').value = '';
                     } else {
-                        throw new Error(result.error || 'Upload failed');
+                        // Backend fallback
+                        const formData = new FormData();
+                        formData.append('uploadType', uploadType);
+                        if (uploadType === 'flow') formData.append('flowName', flowName);
+                        const prefix = uploadType === 'handbook' ? 'handbooks/' : (uploadType === 'flow' ? `${flowName}/` : '');
+                        allFiles.forEach((file) => {
+                            const relativePath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) ? file.webkitRelativePath : file.name;
+                            const sanitized = relativePath.replace(/^\/+/, '');
+                            const finalPath = prefix && !sanitized.startsWith(prefix) ? `${prefix}${sanitized}` : sanitized;
+                            formData.append('files', file, finalPath);
+                        });
+                        const response = await fetch('/api/knowledge/upload', { method: 'POST', body: formData });
+                        const result = await response.json();
+                        if (!result.success) throw new Error(result.error || 'Upload failed');
+                        resultsContainer.innerHTML = `
+                            <div class="success">
+                                <i class="fas fa-check-circle"></i>
+                                Successfully uploaded ${result.uploadedCount} file(s)!
+                            </div>
+                        `;
+                        resultsContainer.className = 'upload-results success';
+                        await this.loadKnowledgeBaseStats();
                     }
                 } catch (error) {
                     console.error('Upload error:', error);
@@ -2366,28 +2389,99 @@
             }
 
             async handleFileUpload(files) {
-                for (const file of files) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('description', `Uploaded ${file.name}`);
-
+                if (this.supabaseClient) {
                     try {
-                        const response = await fetch('/api/knowledge', {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        if (response.ok) {
-                            this.loadKnowledge();
-                            this.loadStats();
-                        } else {
-                            const error = await response.json();
-                            alert(`Error uploading ${file.name}: ${error.error}`);
+                        await this.supabaseUploadFiles(Array.from(files), 'handbooks/');
+                        await this.loadKnowledge();
+                        await this.loadStats();
+                    } catch (e) {
+                        alert(`Error uploading: ${e.message}`);
+                    }
+                } else {
+                    for (const file of files) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('description', `Uploaded ${file.name}`);
+                        try {
+                            const response = await fetch('/api/knowledge', { method: 'POST', body: formData });
+                            if (response.ok) {
+                                this.loadKnowledge();
+                                this.loadStats();
+                            } else {
+                                const error = await response.json();
+                                alert(`Error uploading ${file.name}: ${error.error}`);
+                            }
+                        } catch (error) {
+                            alert(`Error uploading ${file.name}: ${error.message}`);
                         }
-                    } catch (error) {
-                        alert(`Error uploading ${file.name}: ${error.message}`);
                     }
                 }
+            }
+
+            // Supabase helpers (static mode)
+            async supabaseListAll(prefix) {
+                const client = this.supabaseClient;
+                const bucket = window.__SB && window.__SB.bucket ? window.__SB.bucket : 'flows';
+                if (!client) return [];
+                const results = [];
+                async function listFolder(path) {
+                    let offset = 0;
+                    const limit = 1000;
+                    while (true) {
+                        const { data, error } = await client.storage.from(bucket).list(path, { limit, offset });
+                        if (error) throw error;
+                        const items = data || [];
+                        if (items.length === 0) break;
+                        for (const item of items) {
+                            const isFolder = !item.metadata; // Supabase returns metadata null for folders
+                            if (isFolder) {
+                                const next = path ? `${path}/${item.name}` : item.name;
+                                await listFolder(next);
+                            } else {
+                                const fullPath = path ? `${path}/${item.name}` : item.name;
+                                results.push({
+                                    path: fullPath,
+                                    size: item.metadata?.size || 0,
+                                    mime: item.metadata?.mimetype || '',
+                                    updated: item.metadata?.lastModified || null
+                                });
+                            }
+                        }
+                        if (items.length < limit) break;
+                        offset += items.length;
+                    }
+                }
+                await listFolder(prefix || '');
+                return results;
+            }
+
+            async supabaseListStats() {
+                const files = await this.supabaseListAll('');
+                let totalSize = 0;
+                for (const f of files) totalSize += f.size || 0;
+                return { totalCount: files.length, totalSize };
+            }
+
+            async supabaseUploadFiles(files, prefix) {
+                const client = this.supabaseClient;
+                const bucket = window.__SB && window.__SB.bucket ? window.__SB.bucket : 'flows';
+                if (!client) throw new Error('Supabase not configured');
+                let success = 0;
+                for (const file of files) {
+                    const relativePath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) ? file.webkitRelativePath : file.name;
+                    const sanitized = relativePath.replace(/^\/+/, '');
+                    const finalPath = (prefix || '') + sanitized;
+                    const contentType = file.type || this.guessMime(finalPath);
+                    const { error } = await client.storage.from(bucket).upload(finalPath, file, { upsert: true, contentType });
+                    if (!error) success += 1; else console.warn('Upload failed', finalPath, error.message);
+                }
+                return success;
+            }
+
+            guessMime(path) {
+                const ext = (path.split('.').pop() || '').toLowerCase();
+                const map = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', json: 'application/json', rtf: 'application/rtf' };
+                return map[ext] || 'application/octet-stream';
             }
 
             async loadKnowledge() {
