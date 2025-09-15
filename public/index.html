@@ -2484,6 +2484,19 @@
                 return map[ext] || 'application/octet-stream';
             }
 
+            async supabaseUpsertSettings(row) {
+                const client = this.supabaseClient;
+                if (!client) throw new Error('Supabase not configured');
+                // Ensure key default exists
+                if (!row.key) row.key = 'default';
+                const { data, error } = await client
+                    .from('app_settings')
+                    .upsert(row, { onConflict: 'key' })
+                    .select()
+                    .maybeSingle();
+                return { data, error };
+            }
+
             async loadKnowledge() {
                 try {
                     const knowledgeList = document.getElementById('knowledge-list');
