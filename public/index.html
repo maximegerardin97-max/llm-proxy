@@ -1140,6 +1140,9 @@
                             <span id="selected-model">Select Model</span>
                             <i class="fas fa-chevron-down"></i>
                         </button>
+                        <button id="save-model-btn" class="settings-btn" title="Save selected model">
+                            <i class="fas fa-save"></i>
+                        </button>
                         <button id="settings-btn" class="settings-btn">
                             <i class="fas fa-cog"></i>
                         </button>
@@ -1478,11 +1481,38 @@
                 this.selectedImages = [];
                 this.supabaseClient = (window.__SB && window.__SB.client) ? window.__SB.client : null;
                 this.kbListenersBound = false;
+                // Load persisted selection early to avoid defaulting back to OpenAI on refresh
+                try {
+                    const lsProvider = localStorage.getItem('currentProvider');
+                    const lsModel = localStorage.getItem('currentModel');
+                    if (lsProvider && lsModel) {
+                        this.currentProvider = lsProvider;
+                        this.currentModel = lsModel;
+                    }
+                } catch (_) {}
                 this.initializeEventListeners();
                 this.loadProviders();
                 this.loadKnowledge();
                 this.loadStats();
                 this.loadSettings();
+            }
+
+            normalizeModelForProvider(provider, model) {
+                if (!provider || !model) return model;
+                const p = String(provider).toLowerCase();
+                const m = String(model).toLowerCase();
+                if (p === 'anthropic' || p === 'claude') {
+                    if (m.includes('claude-4-sonnet') || m.includes('claude 4 sonnet') || m.includes('claude-3-5-sonnet') || m.includes('sonnet')) {
+                        return 'claude-3-5-sonnet-latest';
+                    }
+                    if (m.includes('haiku')) return 'claude-3-5-haiku-20241022';
+                }
+                if (p === 'google' || p === 'gemini') {
+                    if (m.includes('gemini 2.5 pro') || m.includes('gemini-2.5-pro')) return 'gemini-2.5-pro';
+                    if (m.includes('1.5 pro')) return 'gemini-1.5-pro';
+                    if (m.includes('1.5 flash')) return 'gemini-1.5-flash';
+                }
+                return model;
             }
 
             async initializeEventListeners() {
@@ -1531,6 +1561,8 @@
                         this.hideSettings();
                     }
                 });
+                const saveBtn = document.getElementById('save-model-btn');
+                if (saveBtn) saveBtn.addEventListener('click', () => this.saveSelectedModel());
 
                 // System prompt update
                 document.getElementById('update-prompt').addEventListener('click', () => this.updateSystemPrompt());
@@ -1557,19 +1589,20 @@
                     this.providers = data.providers;
                     this.populateModelSelector();
                     
-                    // Set default model if none selected
-                    if (!this.currentProvider && this.providers.length > 0) {
-                        const firstProvider = this.providers[0];
-                        this.selectModel(firstProvider.name, firstProvider.bestModel);
+                    // Respect persisted selection only; do NOT auto-default to OpenAI
+                    const lsProvider = localStorage.getItem('currentProvider');
+                    const lsModel = localStorage.getItem('currentModel');
+                    if (!this.currentProvider && lsProvider && lsModel && this.providers.find(p => p.name === lsProvider)) {
+                        this.selectModel(lsProvider, lsModel);
                     }
                 } catch (error) {
                     console.error('Failed to load providers:', error);
                     // Fallback static providers for GitHub Pages/static mode
                     this.providers = [
                         { name: 'openai', displayName: 'OpenAI', logo: '🤖', description: "OpenAI's models.", bestModel: 'gpt-4o', models: ['gpt-4o','gpt-4o-mini','o4-mini'] },
-                        { name: 'anthropic', displayName: 'Anthropic', logo: '🧠', description: "Anthropic's models.", bestModel: 'claude-3-5-sonnet-20241022', models: ['claude-3-5-sonnet-20241022','claude-3-5-haiku-20241022'] },
+                        { name: 'anthropic', displayName: 'Anthropic', logo: '🧠', description: "Anthropic's models.", bestModel: 'claude-3-5-sonnet-latest', models: ['claude-3-5-sonnet-latest','claude-3-5-haiku-20241022'] },
                         { name: 'mistral', displayName: 'Mistral', logo: '🌊', description: "Mistral models.", bestModel: 'mistral-large-latest', models: ['mistral-large-latest','pixtral-large-latest'] },
-                        { name: 'google', displayName: 'Google', logo: '⭐', description: "Google Gemini models.", bestModel: 'gemini-2.5-pro', models: ['gemini-2.5-pro','gemini-1.5-flash'] }
+                        { name: 'google', displayName: 'Google', logo: '⭐', description: "Google Gemini models.", bestModel: 'gemini-2.5-pro', models: ['gemini-2.5-pro','gemini-1.5-pro','gemini-1.5-flash'] }
                     ];
                     this.populateModelSelector();
                 }
@@ -1598,7 +1631,7 @@
                 // Create the exact layout from your reference image
                 const bestModels = [
                     { name: 'openai', displayName: 'GPT 4o', logo: '🤖', description: "OpenAI's GPT4-o model.", model: 'gpt-4o' },
-                    { name: 'anthropic', displayName: 'Claude 4 Sonnet', logo: '🧠', description: "Anthropic's balanced Claude 4 model.", model: 'claude-3-5-sonnet-20241022' },
+                    { name: 'anthropic', displayName: 'Claude 4 Sonnet', logo: '🧠', description: "Anthropic's balanced Claude 4 model.", model: 'claude-3-5-sonnet-latest' },
                     { name: 'mistral', displayName: 'Mistral Large', logo: '🌊', description: "Mistral's large model.", model: 'mistral-large-latest' },
                     { name: 'google', displayName: 'Gemini 2.5 Pro', logo: '⭐', description: "Google's powerful model.", model: 'gemini-2.5-pro' }
                 ];
@@ -1612,14 +1645,14 @@
                         modelCard.dataset.provider = provider.name;
                         modelCard.dataset.model = modelInfo.model;
                         
-                        // Fix API key status - OpenAI has a key, others don't
-                        const hasKey = provider.name === 'openai';
-                        
+                        // Always show connected for all providers on GitHub Pages
+                        const badge = '<span class="api-key-status connected">Connected</span>';
+
                         modelCard.innerHTML = `
                             <div class="model-card-header">
                                 <span class="model-logo">${modelInfo.logo}</span>
                                 <span class="model-name">${modelInfo.displayName}</span>
-                                ${!hasKey ? '<span class="api-key-status disconnected">No API Key</span>' : ''}
+                                ${badge}
                             </div>
                             <div class="model-description">${modelInfo.description}</div>
                         `;
@@ -1635,14 +1668,13 @@
                 allProviders.forEach(provider => {
                     const modelItem = document.createElement('div');
                     modelItem.className = 'model-item';
-                    // Fix API key status - OpenAI has a key, others don't
-                    const hasKey = provider.name === 'openai';
+                    const badge = '<span class="api-key-status connected">Connected</span>';
                     
                     modelItem.innerHTML = `
                         <div class="model-item-info">
                             <span class="model-logo">${provider.logo}</span>
                             <span class="model-item-name">From ${provider.displayName}</span>
-                            ${!hasKey ? '<span class="api-key-status disconnected">No API Key</span>' : ''}
+                            ${badge}
                         </div>
                         <i class="fas fa-chevron-right model-item-arrow"></i>
                     `;
@@ -1666,8 +1698,32 @@
                     card.classList.remove('selected');
                 });
                 document.querySelector(`[data-provider="${providerName}"][data-model="${model}"]`)?.classList.add('selected');
-                
+
+                // Persist locally only; server save happens on explicit Save
+                try {
+                    localStorage.setItem('currentProvider', this.currentProvider);
+                    localStorage.setItem('currentModel', this.currentModel);
+                } catch (_) {}
+
                 this.hideModelSelector();
+            }
+
+            async saveSelectedModel() {
+                if (!this.currentProvider || !this.currentModel) return;
+                try {
+                    if (this.supabaseClient) {
+                        await this.supabaseUpsertSettings({ key: 'default', provider: this.currentProvider, model: this.currentModel });
+                    } else {
+                        await fetch('/api/settings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ provider: this.currentProvider, model: this.currentModel })
+                        });
+                    }
+                    alert('Model selection saved.');
+                } catch (err) {
+                    alert('Failed to save selection: ' + (err?.message || String(err)));
+                }
             }
 
             showProviderModels(provider) {
@@ -2113,53 +2169,32 @@
             }
 
             async loadApiKeys() {
-                try {
-                    const response = await fetch('/api/api-keys');
-                    const apiKeys = await response.json();
-                    
-                    const container = document.getElementById('api-keys-container');
-                    container.innerHTML = '';
-                    
-                    Object.keys(apiKeys).forEach(provider => {
-                        const keyData = apiKeys[provider];
-                        const providerInfo = this.providers?.find(p => p.name === provider);
-                        
-                        if (providerInfo) {
-                            const form = document.createElement('div');
-                            form.className = 'api-key-form';
-                            form.innerHTML = `
-                                <div class="api-key-form-header">
-                                    <h4>${providerInfo.logo} ${providerInfo.displayName}</h4>
-                                    <span class="api-key-status ${keyData.hasKey ? 'connected' : 'disconnected'}">
-                                        ${keyData.hasKey ? 'Connected' : 'Not Connected'}
-                                    </span>
-                                </div>
-                                <div class="api-key-input-group">
-                                    <input type="password" class="api-key-input" placeholder="Enter API key..." value="${keyData.masked || ''}" data-provider="${provider}">
-                                    <button class="test-api-btn" data-provider="${provider}">Test</button>
-                                    <button class="save-api-btn" data-provider="${provider}">Save</button>
-                                </div>
-                            `;
-                            container.appendChild(form);
-                        }
-                    });
-
-                    // Add event listeners for the buttons
-                    container.addEventListener('click', (e) => {
-                        if (e.target.classList.contains('test-api-btn')) {
-                            const provider = e.target.dataset.provider;
-                            this.testApiKey(provider);
-                        } else if (e.target.classList.contains('save-api-btn')) {
-                            const provider = e.target.dataset.provider;
-                            this.saveApiKey(provider);
-                        }
-                    });
-
-                    // Add knowledge base event listeners
-                    this.setupKnowledgeBaseEventListeners();
-                } catch (error) {
-                    console.error('Failed to load API keys:', error);
+                // On GitHub Pages, always show all providers as connected (managed via Supabase secrets)
+                const container = document.getElementById('api-keys-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="api-key-form">
+                            <div class="api-key-form-header">
+                                <h4>🤖 OpenAI</h4>
+                                <span class="api-key-status connected">Connected</span>
+                            </div>
+                        </div>
+                        <div class="api-key-form">
+                            <div class="api-key-form-header">
+                                <h4>🧠 Anthropic</h4>
+                                <span class="api-key-status connected">Connected</span>
+                            </div>
+                        </div>
+                        <div class="api-key-form">
+                            <div class="api-key-form-header">
+                                <h4>⭐ Google</h4>
+                                <span class="api-key-status connected">Connected</span>
+                            </div>
+                        </div>
+                    `;
                 }
+                // Add knowledge base event listeners
+                this.setupKnowledgeBaseEventListeners();
             }
 
             async testApiKey(provider) {
@@ -2256,7 +2291,7 @@
                         body: JSON.stringify({
                             message: messageContent,
                             provider: this.currentProvider || undefined,
-                            model: this.currentModel || undefined,
+                            model: this.normalizeModelForProvider(this.currentProvider, this.currentModel) || undefined,
                             systemPrompt: systemPromptText || undefined
                         })
                     });
@@ -2307,9 +2342,9 @@
 
             getChatEndpointAndHeaders() {
                 // If Supabase static mode is configured, prefer Edge Function
-                const sbUrl = (localStorage.getItem('sbUrl') || '').replace(/\/$/, '');
-                const sbKey = localStorage.getItem('sbKey') || '';
-                const configuredFn = localStorage.getItem('sbChat') || '';
+                const sbUrl = ((window.__SB && window.__SB.url) || localStorage.getItem('sbUrl') || '').replace(/\/$/, '');
+                const sbKey = (window.__SB && window.__SB.key) || localStorage.getItem('sbKey') || '';
+                const configuredFn = (window.__SB && window.__SB.chatUrl) || localStorage.getItem('sbChat') || '';
                 // Derive functions domain from project URL if needed
                 const deriveFunctionsBase = (projectUrl) => {
                     if (!projectUrl) return '';
@@ -2666,14 +2701,21 @@
                                 const el = document.getElementById('system-prompt');
                                 if (el) el.value = data.system_prompt;
                             }
-                            if (data.provider && data.model) {
+                            if (data.provider && data.model && !this.currentProvider) {
                                 this.currentProvider = data.provider;
                                 this.currentModel = data.model;
+                                try {
+                                    localStorage.setItem('currentProvider', this.currentProvider);
+                                    localStorage.setItem('currentModel', this.currentModel);
+                                } catch (_) {}
                                 const providerInfo = this.providers?.find(p => p.name === data.provider);
                                 if (providerInfo) {
                                     const selectedModelText = document.getElementById('selected-model');
                                     if (selectedModelText) selectedModelText.textContent = `${providerInfo.logo} ${providerInfo.displayName}`;
                                 }
+                                // Ensure UI selection applies
+                                const existing = this.providers?.find(p => p.name === this.currentProvider);
+                                if (existing) this.selectModel(this.currentProvider, this.currentModel);
                             }
                         }
                     } else {
@@ -2684,14 +2726,20 @@
                             const el = document.getElementById('system-prompt');
                             if (el) el.value = settings.systemPrompt;
                         }
-                        if (settings?.provider && settings?.model) {
+                        if (settings?.provider && settings?.model && !this.currentProvider) {
                             this.currentProvider = settings.provider;
                             this.currentModel = settings.model;
+                            try {
+                                localStorage.setItem('currentProvider', this.currentProvider);
+                                localStorage.setItem('currentModel', this.currentModel);
+                            } catch (_) {}
                             const providerInfo = this.providers?.find(p => p.name === settings.provider);
                             if (providerInfo) {
                                 const selectedModelText = document.getElementById('selected-model');
                                 if (selectedModelText) selectedModelText.textContent = `${providerInfo.logo} ${providerInfo.displayName}`;
                             }
+                            const existing = this.providers?.find(p => p.name === this.currentProvider);
+                            if (existing) this.selectModel(this.currentProvider, this.currentModel);
                         }
                     }
                 } catch (_) {
