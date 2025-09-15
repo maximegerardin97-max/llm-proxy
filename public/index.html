@@ -2206,6 +2206,33 @@
                 
                 if ((!message && this.selectedImages.length === 0) || this.isStreaming) return;
 
+                // Capture current system prompt
+                const systemPromptEl = document.getElementById('system-prompt');
+                const systemPromptText = systemPromptEl ? String(systemPromptEl.value || '').trim() : '';
+
+                // Build lightweight KB hint from Supabase filenames (best-effort, fast)
+                let kbHintText = '';
+                if (this.supabaseClient) {
+                    try {
+                        const queryTerms = (message || '').toLowerCase().split(/\W+/).filter(Boolean);
+                        const files = await this.supabaseListAll('');
+                        const scored = files.map(f => {
+                            const name = (f.path || '').toLowerCase();
+                            let score = 0;
+                            for (const term of queryTerms) {
+                                if (term && name.includes(term)) score += 1;
+                            }
+                            return { f, score };
+                        }).filter(x => x.score > 0).sort((a,b)=>b.score-a.score).slice(0, 20);
+                        if (scored.length > 0) {
+                            const lines = scored.map(x => `- ${x.f.path} (${x.f.size || 0} bytes)`);
+                            kbHintText = `Relevant files (by name match):\n${lines.join('\n')}`;
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+
                 // Prepare message content with images
                 let messageContent = message;
                 if (this.selectedImages.length > 0) {
@@ -2219,11 +2246,30 @@
                     
                     if (message) {
                         messageContent = [
+                            ...(systemPromptText ? [{ type: 'text', text: `System instructions:\n${systemPromptText}` }] : []),
+                            ...(kbHintText ? [{ type: 'text', text: kbHintText }] : []),
                             { type: 'text', text: message },
                             ...imageContent
                         ];
                     } else {
-                        messageContent = imageContent;
+                        messageContent = [
+                            ...(systemPromptText ? [{ type: 'text', text: `System instructions:\n${systemPromptText}` }] : []),
+                            ...(kbHintText ? [{ type: 'text', text: kbHintText }] : []),
+                            ...imageContent
+                        ];
+                    }
+                }
+                // If no images, still prepend system prompt and KB hint when available
+                if (this.selectedImages.length === 0) {
+                    const parts = [];
+                    if (systemPromptText) parts.push({ type: 'text', text: `System instructions:\n${systemPromptText}` });
+                    if (kbHintText) parts.push({ type: 'text', text: kbHintText });
+                    if (parts.length > 0) {
+                        if (Array.isArray(messageContent)) {
+                            messageContent = [...parts, ...messageContent];
+                        } else if (typeof messageContent === 'string' && messageContent.length > 0) {
+                            messageContent = [...parts, { type: 'text', text: messageContent }];
+                        }
                     }
                 }
 
@@ -2244,7 +2290,8 @@
                         body: JSON.stringify({
                             message: messageContent,
                             provider: this.currentProvider || undefined,
-                            model: this.currentModel || undefined
+                            model: this.currentModel || undefined,
+                            systemPrompt: systemPromptText || undefined
                         })
                     });
 
