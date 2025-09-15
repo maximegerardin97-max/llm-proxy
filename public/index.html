@@ -1350,26 +1350,26 @@
                                         <div id="drop-zone" class="drop-zone">
                                             <div class="drop-zone-content">
                                                 <i class="fas fa-cloud-upload-alt"></i>
-                                                <p>Drag & drop files here or <button type="button" id="select-files-btn" class="btn btn-secondary">Select Files</button></p>
+                                                <p>Drag & drop files here or <button type="button" id="kb-select-files-btn" class="btn btn-secondary">Select Files</button></p>
                                                 <p class="drop-zone-hint">Supports: PNG, JPG, PDF, TXT, MD, DOCX, JSON, RTF</p>
                                             </div>
                                         </div>
-                                        <input type="file" id="file-upload" multiple accept=".png,.jpg,.jpeg,.pdf,.txt,.md,.docx,.json,.rtf" style="display: none;">
+                                        <input type="file" id="kb-file-upload" multiple accept=".png,.jpg,.jpeg,.pdf,.txt,.md,.docx,.json,.rtf" style="display: none;">
                                         <div style="display:flex; gap:10px; align-items:center;">
-                                            <button type="button" id="select-folder-btn" class="btn btn-secondary">
+                                            <button type="button" id="kb-select-folder-btn" class="btn btn-secondary">
                                                 <i class="fas fa-folder"></i> Select Folder
                                             </button>
-                                            <span id="selected-folder-name" class="file-count"></span>
+                                            <span id="kb-selected-folder-name" class="file-count"></span>
                                         </div>
-                                        <input type="file" id="folder-upload" webkitdirectory directory multiple style="display: none;">
-                                        <span id="selected-files-count" class="file-count"></span>
+                                        <input type="file" id="kb-folder-upload" webkitdirectory directory multiple style="display: none;">
+                                        <span id="kb-selected-files-count" class="file-count"></span>
                                     </div>
                                     
                                     <div id="flow-name-container" class="flow-name-container" style="display: none;">
                                         <input type="text" id="flow-name-input" placeholder="Flow name (e.g., 'Spotify iOS Onboarding')" class="flow-name-input">
                                     </div>
                                     
-                                    <button id="upload-files-btn" class="btn btn-primary" disabled>
+                                    <button id="kb-upload-files-btn" class="btn btn-primary" disabled>
                                         <i class="fas fa-upload"></i> Upload Files
                                     </button>
                                 </div>
@@ -1897,15 +1897,15 @@
             }
 
             setupUploadEventListeners() {
-                const fileUpload = document.getElementById('file-upload');
-                const selectFilesBtn = document.getElementById('select-files-btn');
-                const selectFolderBtn = document.getElementById('select-folder-btn');
-                const folderUpload = document.getElementById('folder-upload');
-                const uploadBtn = document.getElementById('upload-files-btn');
+                const fileUpload = document.getElementById('kb-file-upload');
+                const selectFilesBtn = document.getElementById('kb-select-files-btn');
+                const selectFolderBtn = document.getElementById('kb-select-folder-btn');
+                const folderUpload = document.getElementById('kb-folder-upload');
+                const uploadBtn = document.getElementById('kb-upload-files-btn');
                 const uploadTypeRadios = document.querySelectorAll('input[name="upload-type"]');
                 const flowNameContainer = document.getElementById('flow-name-container');
                 const flowNameInput = document.getElementById('flow-name-input');
-                const selectedFilesCount = document.getElementById('selected-files-count');
+                const selectedFilesCount = document.getElementById('kb-selected-files-count');
                 const dropZone = document.getElementById('drop-zone');
 
                 // File selection
@@ -1922,7 +1922,7 @@
                     const files = Array.from(e.target.files);
                     // Prefer files with webkitRelativePath present
                     this.handleFileSelection(files);
-                    const folderHint = document.getElementById('selected-folder-name');
+                    const folderHint = document.getElementById('kb-selected-folder-name');
                     const firstPath = files.find(f => f.webkitRelativePath)?.webkitRelativePath || '';
                     const topFolder = firstPath.split('/')[0] || '';
                     folderHint.textContent = topFolder ? `Folder: ${topFolder} (${files.length} files)` : `${files.length} file(s) selected`;
@@ -1978,8 +1978,8 @@
             }
 
             handleFileSelection(files) {
-                const selectedFilesCount = document.getElementById('selected-files-count');
-                const fileUpload = document.getElementById('file-upload');
+                const selectedFilesCount = document.getElementById('kb-selected-files-count');
+                const fileUpload = document.getElementById('kb-file-upload');
                 
                 // Filter files by allowed types
                 const allowedTypes = ['.png', '.jpg', '.jpeg', '.pdf', '.txt', '.md', '.docx', '.json', '.rtf'];
@@ -2002,9 +2002,9 @@
             }
 
             updateUploadButtonState() {
-                const fileUpload = document.getElementById('file-upload');
-                const folderUpload = document.getElementById('folder-upload');
-                const uploadBtn = document.getElementById('upload-files-btn');
+                const fileUpload = document.getElementById('kb-file-upload');
+                const folderUpload = document.getElementById('kb-folder-upload');
+                const uploadBtn = document.getElementById('kb-upload-files-btn');
                 const flowNameInput = document.getElementById('flow-name-input');
                 
                 const hasFiles = fileUpload.files.length > 0 || folderUpload.files.length > 0;
@@ -2019,8 +2019,8 @@
             }
 
             async uploadFiles() {
-                const fileUpload = document.getElementById('file-upload');
-                const folderUpload = document.getElementById('folder-upload');
+                const fileUpload = document.getElementById('kb-file-upload');
+                const folderUpload = document.getElementById('kb-folder-upload');
                 const files = Array.from(fileUpload.files);
                 const folderFiles = Array.from(folderUpload.files || []);
                 const allFiles = files.length > 0 ? files : folderFiles;
@@ -2030,7 +2030,7 @@
                 if (allFiles.length === 0) return;
                 if (uploadType === 'flow' && !flowName) return;
 
-                const uploadBtn = document.getElementById('upload-files-btn');
+                const uploadBtn = document.getElementById('kb-upload-files-btn');
                 const progressContainer = document.getElementById('upload-progress');
                 const progressFill = document.querySelector('.progress-fill');
                 const progressText = document.querySelector('.progress-text');
@@ -2056,8 +2056,8 @@
                         await this.loadKnowledgeBaseStats();
                         fileUpload.value = '';
                         folderUpload.value = '';
-                        document.getElementById('selected-files-count').textContent = '';
-                        const folderHint = document.getElementById('selected-folder-name');
+                        document.getElementById('kb-selected-files-count').textContent = '';
+                        const folderHint = document.getElementById('kb-selected-folder-name');
                         if (folderHint) folderHint.textContent = '';
                         document.getElementById('flow-name-input').value = '';
                     } else {
