@@ -2204,7 +2204,8 @@
                 const input = document.getElementById('message-input');
                 const message = input.value.trim();
                 
-                if ((!message && this.selectedImages.length === 0) || this.isStreaming) return;
+                // Require text; images are optional. Match localhost behavior.
+                if ((message.length === 0) || this.isStreaming) return;
 
                 // Prepare user message content (text + optional images). Do NOT inject prompt/KB here.
                 let messageContent = message;
