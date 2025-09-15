@@ -1576,6 +1576,11 @@
                     this.handleImageUpload(e.target.files);
                 });
 
+                // Image paste functionality
+                document.addEventListener('paste', (e) => {
+                    this.handleImagePaste(e);
+                });
+
                 // Clear images
                 document.getElementById('clear-images').addEventListener('click', () => {
                     this.clearImages();
@@ -2780,6 +2785,73 @@
                         reader.readAsDataURL(file);
                     }
                 });
+            }
+
+            handleImagePaste(e) {
+                // Only handle paste when focused on chat input or message area
+                const activeElement = document.activeElement;
+                const isInChatArea = activeElement && (
+                    activeElement.id === 'message-input' || 
+                    activeElement.closest('.message-input-container') ||
+                    activeElement.closest('.chat-messages')
+                );
+                
+                if (!isInChatArea) return;
+
+                const items = e.clipboardData?.items;
+                if (!items) return;
+
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const file = item.getAsFile();
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                const imageData = {
+                                    id: Date.now() + Math.random(),
+                                    file: file,
+                                    dataUrl: e.target.result,
+                                    name: `pasted-image-${Date.now()}.${file.type.split('/')[1]}`
+                                };
+                                this.selectedImages.push(imageData);
+                                this.updateImagePreview();
+                                
+                                // Show a brief success message
+                                this.showPasteSuccess();
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                        break; // Only handle the first image
+                    }
+                }
+            }
+
+            showPasteSuccess() {
+                // Create a temporary success indicator
+                const successDiv = document.createElement('div');
+                successDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #4CAF50;
+                    color: white;
+                    padding: 10px 15px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    z-index: 10000;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                `;
+                successDiv.textContent = '📷 Image pasted successfully!';
+                document.body.appendChild(successDiv);
+                
+                // Remove after 2 seconds
+                setTimeout(() => {
+                    if (successDiv.parentNode) {
+                        successDiv.parentNode.removeChild(successDiv);
+                    }
+                }, 2000);
             }
 
             updateImagePreview() {
