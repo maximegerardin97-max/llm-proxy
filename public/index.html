@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLM Proxy - AI Agent Interface</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" crossorigin="anonymous"></script>
     <style>
         * {
             margin: 0;
@@ -1426,6 +1427,46 @@
                 }
             } catch (_) {}
         })();
+        // Supabase static-mode initializer (uses URL params or localStorage)
+        (function setupSupabaseClient(){
+            const params = new URLSearchParams(window.location.search);
+            let sbUrl = params.get('sbUrl') || localStorage.getItem('sbUrl') || '';
+            let sbKey = params.get('sbKey') || localStorage.getItem('sbKey') || '';
+            let sbBucket = params.get('sbBucket') || localStorage.getItem('sbBucket') || '';
+            const sbChat = params.get('sbChat') || localStorage.getItem('sbChat') || '';
+            // Auto-configure for GitHub Pages (no console/params needed)
+            try {
+                const onPages = window.location.hostname.endsWith('github.io');
+                const inRepo = window.location.pathname.includes('/llm-proxy');
+                if (onPages && inRepo && (!sbUrl || !sbKey)) {
+                    sbUrl = 'https://iiolvvdnzrfcffudwocp.supabase.co';
+                    sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw';
+                    sbBucket = 'flows';
+                    localStorage.setItem('sbUrl', sbUrl);
+                    localStorage.setItem('sbKey', sbKey);
+                    localStorage.setItem('sbBucket', sbBucket);
+                }
+            } catch (_) {}
+            if (params.get('sbUrl')) localStorage.setItem('sbUrl', sbUrl);
+            if (params.get('sbKey')) localStorage.setItem('sbKey', sbKey);
+            if (params.get('sbBucket')) localStorage.setItem('sbBucket', sbBucket);
+            if (params.get('sbChat')) localStorage.setItem('sbChat', sbChat);
+            window.__SB = {
+                url: sbUrl,
+                key: sbKey,
+                bucket: sbBucket || 'flows',
+                chatUrl: sbChat || '',
+                client: null
+            };
+            if (window.supabase && sbUrl && sbKey) {
+                try {
+                    window.__SB.client = window.supabase.createClient(sbUrl, sbKey);
+                    console.log('Supabase client ready for static mode');
+                } catch (e) {
+                    console.warn('Supabase init failed', e);
+                }
+            }
+        })();
         
         class LLMProxy {
             constructor() {
@@ -1433,6 +1474,7 @@
                 this.currentModel = '';
                 this.isStreaming = false;
                 this.selectedImages = [];
+                this.supabaseClient = (window.__SB && window.__SB.client) ? window.__SB.client : null;
                 this.initializeEventListeners();
                 this.loadProviders();
                 this.loadKnowledge();
@@ -1680,21 +1722,31 @@
 
             async loadKnowledgeBaseInfo() {
                 try {
-                    // Test connection
-                    const response = await fetch('/api/knowledge/test-connection');
-                    const data = await response.json();
-                    
                     const statusElement = document.getElementById('kb-status');
-                    if (data.success) {
-                        statusElement.textContent = 'Connected';
-                        statusElement.className = 'status-indicator connected';
+                    if (this.supabaseClient) {
+                        // Simple ping via listing root to confirm access
+                        try {
+                            await this.supabaseListAll('');
+                            statusElement.textContent = 'Connected';
+                            statusElement.className = 'status-indicator connected';
+                        } catch (e) {
+                            statusElement.textContent = 'Disconnected';
+                            statusElement.className = 'status-indicator disconnected';
+                        }
+                        await this.loadKnowledgeBaseStats();
                     } else {
-                        statusElement.textContent = 'Disconnected';
-                        statusElement.className = 'status-indicator disconnected';
+                        // Fallback to backend test
+                        const response = await fetch('/api/knowledge/test-connection');
+                        const data = await response.json();
+                        if (data.success) {
+                            statusElement.textContent = 'Connected';
+                            statusElement.className = 'status-indicator connected';
+                        } else {
+                            statusElement.textContent = 'Disconnected';
+                            statusElement.className = 'status-indicator disconnected';
+                        }
+                        await this.loadKnowledgeBaseStats();
                     }
-                    
-                    // Load stats
-                    await this.loadKnowledgeBaseStats();
                 } catch (error) {
                     console.error('Failed to load knowledge base info:', error);
                     const statusElement = document.getElementById('kb-status');
@@ -1705,10 +1757,14 @@
 
             async loadKnowledgeBaseStats() {
                 try {
-                    const response = await fetch('/api/knowledge/stats');
-                    const data = await response.json();
-                    
-                    document.getElementById('kb-count').textContent = data.totalDocuments || 0;
+                    if (this.supabaseClient) {
+                        const { totalCount } = await this.supabaseListStats();
+                        document.getElementById('kb-count').textContent = totalCount || 0;
+                    } else {
+                        const response = await fetch('/api/knowledge/stats');
+                        const data = await response.json();
+                        document.getElementById('kb-count').textContent = data.totalDocuments || 0;
+                    }
                 } catch (error) {
                     console.error('Failed to load knowledge base stats:', error);
                     document.getElementById('kb-count').textContent = 'Error';
@@ -2336,27 +2392,40 @@
 
             async loadKnowledge() {
                 try {
-                    const response = await fetch('/api/knowledge');
-                    const data = await response.json();
-                    
                     const knowledgeList = document.getElementById('knowledge-list');
-                    
-                    if (data.documents.length === 0) {
-                        knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
-                        return;
-                    }
-                    
-                    knowledgeList.innerHTML = data.documents.map(doc => `
-                        <div class="knowledge-item">
-                            <div class="knowledge-item-info">
-                                <div class="knowledge-item-name">${doc.filename}</div>
-                                <div class="knowledge-item-type">${doc.type.toUpperCase()} • ${(doc.size / 1024).toFixed(1)} KB</div>
+                    if (this.supabaseClient) {
+                        const files = await this.supabaseListAll('');
+                        if (!files || files.length === 0) {
+                            knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
+                            return;
+                        }
+                        knowledgeList.innerHTML = files.slice(0, 200).map(doc => `
+                            <div class="knowledge-item">
+                                <div class="knowledge-item-info">
+                                    <div class="knowledge-item-name">${doc.path}</div>
+                                    <div class="knowledge-item-type">${(doc.mime || 'file').toUpperCase()} • ${(doc.size / 1024).toFixed(1)} KB</div>
+                                </div>
                             </div>
-                            <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${doc.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `).join('');
+                        `).join('');
+                    } else {
+                        const response = await fetch('/api/knowledge');
+                        const data = await response.json();
+                        if (data.documents.length === 0) {
+                            knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
+                            return;
+                        }
+                        knowledgeList.innerHTML = data.documents.map(doc => `
+                            <div class="knowledge-item">
+                                <div class="knowledge-item-info">
+                                    <div class="knowledge-item-name">${doc.filename}</div>
+                                    <div class="knowledge-item-type">${doc.type.toUpperCase()} • ${(doc.size / 1024).toFixed(1)} KB</div>
+                                </div>
+                                <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${doc.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `).join('');
+                    }
                 } catch (error) {
                     console.error('Failed to load knowledge:', error);
                 }
@@ -2384,11 +2453,16 @@
 
             async loadStats() {
                 try {
-                    const response = await fetch('/api/knowledge/stats');
-                    const stats = await response.json();
-                    
-                    document.getElementById('total-docs').textContent = stats.totalDocuments;
-                    document.getElementById('total-size').textContent = (stats.totalSize / 1024 / 1024).toFixed(1);
+                    if (this.supabaseClient) {
+                        const { totalCount, totalSize } = await this.supabaseListStats();
+                        document.getElementById('total-docs').textContent = totalCount;
+                        document.getElementById('total-size').textContent = (totalSize / 1024 / 1024).toFixed(1);
+                    } else {
+                        const response = await fetch('/api/knowledge/stats');
+                        const stats = await response.json();
+                        document.getElementById('total-docs').textContent = stats.totalDocuments;
+                        document.getElementById('total-size').textContent = (stats.totalSize / 1024 / 1024).toFixed(1);
+                    }
                 } catch (error) {
                     console.error('Failed to load stats:', error);
                 }
@@ -2397,16 +2471,18 @@
             async updateSystemPrompt() {
                 const prompt = document.getElementById('system-prompt').value;
                 try {
-                    const response = await fetch('/api/settings', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ systemPrompt: prompt })
-                    });
-                    const result = await response.json();
-                    if (response.ok && result?.settings?.systemPrompt === prompt) {
+                    if (this.supabaseClient) {
+                        const { error } = await this.supabaseUpsertSettings({ key: 'default', system_prompt: prompt });
+                        if (error) throw new Error(error.message);
                         alert('System prompt saved.');
                     } else {
-                        throw new Error(result?.error || 'Failed to save');
+                        const response = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemPrompt: prompt }) });
+                        const result = await response.json();
+                        if (response.ok && result?.settings?.systemPrompt === prompt) {
+                            alert('System prompt saved.');
+                        } else {
+                            throw new Error(result?.error || 'Failed to save');
+                        }
                     }
                 } catch (error) {
                     alert(`Error updating prompt: ${error.message}`);
@@ -2415,20 +2491,43 @@
 
             async loadSettings() {
                 try {
-                    const response = await fetch('/api/settings');
-                    if (!response.ok) return;
-                    const settings = await response.json();
-                    if (settings?.systemPrompt) {
-                        const el = document.getElementById('system-prompt');
-                        if (el) el.value = settings.systemPrompt;
-                    }
-                    if (settings?.provider && settings?.model) {
-                        this.currentProvider = settings.provider;
-                        this.currentModel = settings.model;
-                        const providerInfo = this.providers?.find(p => p.name === settings.provider);
-                        if (providerInfo) {
-                            const selectedModelText = document.getElementById('selected-model');
-                            if (selectedModelText) selectedModelText.textContent = `${providerInfo.logo} ${providerInfo.displayName}`;
+                    if (this.supabaseClient) {
+                        const { data, error } = await this.supabaseClient
+                            .from('app_settings')
+                            .select('key, system_prompt, provider, model')
+                            .eq('key', 'default')
+                            .maybeSingle();
+                        if (!error && data) {
+                            if (data.system_prompt) {
+                                const el = document.getElementById('system-prompt');
+                                if (el) el.value = data.system_prompt;
+                            }
+                            if (data.provider && data.model) {
+                                this.currentProvider = data.provider;
+                                this.currentModel = data.model;
+                                const providerInfo = this.providers?.find(p => p.name === data.provider);
+                                if (providerInfo) {
+                                    const selectedModelText = document.getElementById('selected-model');
+                                    if (selectedModelText) selectedModelText.textContent = `${providerInfo.logo} ${providerInfo.displayName}`;
+                                }
+                            }
+                        }
+                    } else {
+                        const response = await fetch('/api/settings');
+                        if (!response.ok) return;
+                        const settings = await response.json();
+                        if (settings?.systemPrompt) {
+                            const el = document.getElementById('system-prompt');
+                            if (el) el.value = settings.systemPrompt;
+                        }
+                        if (settings?.provider && settings?.model) {
+                            this.currentProvider = settings.provider;
+                            this.currentModel = settings.model;
+                            const providerInfo = this.providers?.find(p => p.name === settings.provider);
+                            if (providerInfo) {
+                                const selectedModelText = document.getElementById('selected-model');
+                                if (selectedModelText) selectedModelText.textContent = `${providerInfo.logo} ${providerInfo.displayName}`;
+                            }
                         }
                     }
                 } catch (_) {
