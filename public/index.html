@@ -2053,7 +2053,11 @@
                 try {
                     if (this.supabaseClient) {
                         const prefix = uploadType === 'handbook' ? 'handbooks/' : (uploadType === 'flow' ? `${flowName}/` : '');
-                        const uploaded = await this.supabaseUploadFiles(allFiles, prefix);
+                        // If a whole folder was selected, strip the top-level folder name to avoid nested duplicates
+                        const topFolder = (allFiles[0] && allFiles[0].webkitRelativePath)
+                            ? allFiles[0].webkitRelativePath.split('/')[0]
+                            : null;
+                        const uploaded = await this.supabaseUploadFiles(allFiles, prefix, topFolder);
                         resultsContainer.innerHTML = `
                             <div class="success">
                                 <i class="fas fa-check-circle"></i>
@@ -2512,13 +2516,16 @@
                 return { totalCount: files.length, totalSize };
             }
 
-            async supabaseUploadFiles(files, prefix) {
+            async supabaseUploadFiles(files, prefix, topFolderToStrip) {
                 const client = this.supabaseClient;
                 const bucket = window.__SB && window.__SB.bucket ? window.__SB.bucket : 'flows';
                 if (!client) throw new Error('Supabase not configured');
                 let success = 0;
                 for (const file of files) {
-                    const relativePath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) ? file.webkitRelativePath : file.name;
+                    let relativePath = (file.webkitRelativePath && file.webkitRelativePath.length > 0) ? file.webkitRelativePath : file.name;
+                    if (topFolderToStrip && relativePath.startsWith(topFolderToStrip + '/')) {
+                        relativePath = relativePath.slice(topFolderToStrip.length + 1);
+                    }
                     const sanitized = relativePath.replace(/^\/+/, '');
                     const finalPath = (prefix || '') + sanitized;
                     const contentType = file.type || this.guessMime(finalPath);
