@@ -1720,7 +1720,21 @@
                             body: JSON.stringify({ provider: this.currentProvider, model: this.currentModel })
                         });
                     }
-                    alert('Model selection saved.');
+                    
+                    // Update UI to show the saved selection
+                    const selectedModelText = document.getElementById('selected-model');
+                    const providerInfo = this.providers?.find(p => p.name === this.currentProvider);
+                    if (selectedModelText && providerInfo) {
+                        selectedModelText.textContent = `${providerInfo.logo} ${providerInfo.displayName}`;
+                    }
+                    
+                    // Update selected state in model selector
+                    document.querySelectorAll('.model-card').forEach(card => {
+                        card.classList.remove('selected');
+                    });
+                    document.querySelector(`[data-provider="${this.currentProvider}"][data-model="${this.currentModel}"]`)?.classList.add('selected');
+                    
+                    alert('Model selection saved as default.');
                 } catch (err) {
                     alert('Failed to save selection: ' + (err?.message || String(err)));
                 }
@@ -2701,7 +2715,8 @@
                                 const el = document.getElementById('system-prompt');
                                 if (el) el.value = data.system_prompt;
                             }
-                            if (data.provider && data.model && !this.currentProvider) {
+                            if (data.provider && data.model) {
+                                // Always apply saved settings as the source of truth
                                 this.currentProvider = data.provider;
                                 this.currentModel = data.model;
                                 try {
@@ -2726,7 +2741,8 @@
                             const el = document.getElementById('system-prompt');
                             if (el) el.value = settings.systemPrompt;
                         }
-                        if (settings?.provider && settings?.model && !this.currentProvider) {
+                        if (settings?.provider && settings?.model) {
+                            // Always apply saved settings as the source of truth
                             this.currentProvider = settings.provider;
                             this.currentModel = settings.model;
                             try {
