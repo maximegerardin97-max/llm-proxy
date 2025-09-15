@@ -1401,6 +1401,32 @@
     </div>
 
     <script>
+        // Route /api/* calls to a public backend when hosted on GitHub Pages
+        (function setupApiBase() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const paramBase = params.get('apiBase');
+                const savedBase = localStorage.getItem('apiBase') || '';
+                const defaultBase = window.location.hostname.endsWith('github.io') ? '' : '';
+                const apiBase = (paramBase || savedBase || defaultBase || '').replace(/\/$/, '');
+                if (paramBase) localStorage.setItem('apiBase', paramBase);
+
+                const originalFetch = window.fetch.bind(window);
+                window.fetch = (input, init) => {
+                    let url = input;
+                    if (typeof input === 'string' && input.startsWith('/api/')) {
+                        url = (apiBase ? apiBase : '') + input;
+                    }
+                    return originalFetch(url, init);
+                };
+
+                // Optional console hint for setup
+                if (window.location.hostname.endsWith('github.io') && !apiBase) {
+                    console.info('Tip: append ?apiBase=https://your-backend.example.com to configure API endpoint for GitHub Pages.');
+                }
+            } catch (_) {}
+        })();
+        
         class LLMProxy {
             constructor() {
                 this.currentProvider = '';
