@@ -1100,6 +1100,27 @@
                 order: -1;
             }
 
+            toPlainText(content) {
+                if (typeof content === 'string') return content;
+                if (Array.isArray(content)) {
+                    return content
+                        .filter(p => p && p.type === 'text' && typeof p.text === 'string')
+                        .map(p => p.text)
+                        .join('\n\n')
+                        .trim();
+                }
+                return '';
+            }
+
+            appendHistory(userText, assistantText) {
+                const u = String(userText || '').trim();
+                const a = String(assistantText || '').trim();
+                if (u) this.history.push({ role: 'user', content: u });
+                if (a) this.history.push({ role: 'assistant', content: a });
+                const MAX = 20; // 10 turns
+                if (this.history.length > MAX) this.history = this.history.slice(this.history.length - MAX);
+            }
+
             .model-grid {
                 grid-template-columns: 1fr;
             }
@@ -1580,6 +1601,7 @@ Always add line breaks for digestibility.</textarea>
                 this.currentModel = '';
                 this.isStreaming = false;
                 this.selectedImages = [];
+                this.history = [];
                 this.supabaseClient = (window.__SB && window.__SB.client) ? window.__SB.client : null;
                 this.kbListenersBound = false;
                 // Load persisted selection early to avoid defaulting back to OpenAI on refresh
@@ -2412,7 +2434,8 @@ Always add line breaks for digestibility.</textarea>
                             message: messageContent,
                             provider: this.currentProvider || undefined,
                             model: this.normalizeModelForProvider(this.currentProvider, this.currentModel) || undefined,
-                            systemPrompt: systemPromptText || undefined
+                            systemPrompt: systemPromptText || undefined,
+                            history: this.history || []
                         })
                     });
 
@@ -2445,6 +2468,8 @@ Always add line breaks for digestibility.</textarea>
                                     } else if (data.type === 'done') {
                                         this.showLoading(false);
                                         this.isStreaming = false;
+                                        const userPlain = this.toPlainText(messageContent);
+                                        this.appendHistory(userPlain, assistantMessage);
                                     }
                                 } catch (e) {
                                     // Ignore parsing errors for incomplete JSON
