@@ -8,9 +8,11 @@ export class Agent {
     this.systemPrompt = systemPrompt;
     
     // Initialize appropriate knowledge base
-    if (config.knowledgeBase.type === 'supabase' && config.supabase?.url && config.supabase?.key) {
+    if (config.knowledgeBase.type === 'supabase' && config.supabase?.url && config.supabase?.serviceRoleKey) {
+      console.log('🔧 Using Supabase knowledge base');
       this.knowledgeBase = new SupabaseKnowledgeBase(config);
     } else {
+      console.log('🔧 Using file-based knowledge base');
       this.knowledgeBase = new KnowledgeBase(config);
     }
     
@@ -43,7 +45,12 @@ export class Agent {
       }
 
       // Get relevant knowledge
+      console.log('🔍 Searching knowledge base for:', searchQuery);
       const relevantDocs = await this.searchKnowledge(searchQuery, { limit: 5 });
+      console.log('📚 Found relevant documents:', relevantDocs.length);
+      if (relevantDocs.length > 0) {
+        console.log('📄 Document names:', relevantDocs.map(doc => doc.filename));
+      }
       
       // Build context from knowledge base
       let context = '';
@@ -56,6 +63,9 @@ export class Agent {
             context += `[${doc.filename}]: ${doc.text?.substring(0, 500)}...\n`;
           }
         });
+        console.log('📝 Context built:', context.substring(0, 200) + '...');
+      } else {
+        console.log('⚠️ No relevant documents found in knowledge base');
       }
 
       // Determine session history (per-session if sessionId provided)
@@ -125,7 +135,12 @@ export class Agent {
       }
 
       // Get relevant knowledge
+      console.log('🔍 Searching knowledge base for:', searchQuery);
       const relevantDocs = await this.searchKnowledge(searchQuery, { limit: 5 });
+      console.log('📚 Found relevant documents:', relevantDocs.length);
+      if (relevantDocs.length > 0) {
+        console.log('📄 Document names:', relevantDocs.map(doc => doc.filename));
+      }
       
       // Build context from knowledge base
       let context = '';
@@ -138,6 +153,9 @@ export class Agent {
             context += `[${doc.filename}]: ${doc.text?.substring(0, 500)}...\n`;
           }
         });
+        console.log('📝 Context built:', context.substring(0, 200) + '...');
+      } else {
+        console.log('⚠️ No relevant documents found in knowledge base');
       }
 
       // Determine session history (per-session if sessionId provided)

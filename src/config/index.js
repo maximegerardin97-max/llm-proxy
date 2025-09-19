@@ -34,14 +34,16 @@ export const config = {
     path: process.env.KNOWLEDGE_BASE_PATH || './knowledge_base',
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 10485760, // 10MB
     allowedTypes: (process.env.ALLOWED_FILE_TYPES || 'pdf,docx,txt,md,jpg,jpeg,png,gif').split(','),
-    type: process.env.KNOWLEDGE_BASE_TYPE || 'file', // 'file' or 'supabase'
+    type: process.env.KNOWLEDGE_BASE_TYPE || 'supabase', // 'file' or 'supabase'
   },
   
   // Supabase Configuration
   supabase: {
-    url: process.env.SUPABASE_URL,
-    key: process.env.SUPABASE_ANON_KEY,
+    url: process.env.SUPABASE_URL || 'https://iiolvvdnzrfcffudwocp.supabase.co',
+    anonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw',
     tableName: process.env.SUPABASE_TABLE_NAME || 'screens',
+    storageBucket: process.env.SUPABASE_STORAGE_BUCKET || 'flows',
   },
   
   // LLM Configuration

@@ -4,8 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config/index.js';
 import chatRoutes, { initializeAgent } from './routes/chat.js';
+import conversationsRoutes from './routes/conversations.js';
+import messagesRoutes from './routes/messages.js';
 import settingsRoutes from './routes/settings.js';
-import knowledgeRoutes from './routes/knowledge.js';
+import imageProcessingRoutes from './routes/imageProcessing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,11 +27,23 @@ app.locals.config = config;
 
 // Initialize agent
 initializeAgent(config);
+// Keep a reference for routes that invoke agent
+app.locals.agentInstance = null;
+// After initializeAgent, we can create an instance for reuse
+// Note: chatRoutes also uses a module-level instance; here we store one for messages route
+try {
+  const { Agent } = await import('./agents/Agent.js');
+  app.locals.agentInstance = new Agent(config);
+} catch (e) {
+  console.warn('Agent instance could not be initialized for messages route:', e?.message);
+}
 
 // Routes
 app.use('/api', chatRoutes);
 app.use('/api', settingsRoutes);
-app.use('/api/knowledge', knowledgeRoutes);
+app.use('/api', conversationsRoutes);
+app.use('/api', messagesRoutes);
+app.use('/api', imageProcessingRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
