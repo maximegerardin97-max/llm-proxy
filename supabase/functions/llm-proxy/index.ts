@@ -20,25 +20,50 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
       
-      const { data: files, error: storageError } = await supabaseClient.storage
-        .from('flows')
-        .list('', { limit: 1000 })
+      // Recursively get all files from all subdirectories
+      async function getAllFiles(path = '') {
+        const { data: items, error } = await supabaseClient.storage
+          .from('flows')
+          .list(path, { limit: 1000 })
+        
+        if (error) {
+          console.error('Storage error:', error)
+          return []
+        }
+        
+        const files = []
+        for (const item of items || []) {
+          if (item.metadata?.mimetype) {
+            // It's a file
+            files.push({
+              ...item,
+              fullPath: path ? `${path}/${item.name}` : item.name
+            })
+          } else {
+            // It's a folder, recurse into it
+            const subFiles = await getAllFiles(path ? `${path}/${item.name}` : item.name)
+            files.push(...subFiles)
+          }
+        }
+        return files
+      }
       
-      if (storageError) {
-        console.error('Storage error:', storageError)
-        return new Response(JSON.stringify({ error: 'Failed to load knowledge base' }), {
-          status: 500,
+      const allFiles = await getAllFiles()
+      
+      if (allFiles.length === 0) {
+        return new Response(JSON.stringify({ error: 'No files found' }), {
+          status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
       
       // Get file info for each file to get actual sizes
       const filesWithInfo = await Promise.all(
-        (files || []).map(async (file) => {
+        allFiles.map(async (file) => {
           try {
             const { data: fileInfo } = await supabaseClient.storage
               .from('flows')
-              .getPublicUrl(file.name)
+              .getPublicUrl(file.fullPath)
             
             // Try to get file metadata
             const response = await fetch(fileInfo.publicUrl, { method: 'HEAD' })
@@ -46,6 +71,7 @@ serve(async (req) => {
             
             return {
               ...file,
+              name: file.fullPath, // Use full path as name
               metadata: {
                 ...file.metadata,
                 size: contentLength ? parseInt(contentLength) : 0,
@@ -53,9 +79,10 @@ serve(async (req) => {
               }
             }
           } catch (error) {
-            console.error(`Error getting info for ${file.name}:`, error)
+            console.error(`Error getting info for ${file.fullPath}:`, error)
             return {
               ...file,
+              name: file.fullPath,
               metadata: {
                 ...file.metadata,
                 size: 0,
