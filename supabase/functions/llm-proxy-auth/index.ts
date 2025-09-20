@@ -70,78 +70,34 @@ serve(async (req) => {
     if (path.includes('/knowledge')) {
       // GET /knowledge - Return knowledge base files
       try {
-        // Recursively get all files from all subdirectories
-        async function getAllFiles(path = '') {
-          const { data: items, error } = await supabaseClient.storage
-            .from('flows')
-            .list(path, { limit: 1000 })
-          
-          if (error) {
-            console.error('Storage error:', error)
-            return []
-          }
-          
-          const files = []
-          for (const item of items || []) {
-            if (item.metadata?.mimetype) {
-              // It's a file
-              files.push({
-                ...item,
-                fullPath: path ? `${path}/${item.name}` : item.name
-              })
-            } else {
-              // It's a folder, recurse into it
-              const subFiles = await getAllFiles(path ? `${path}/${item.name}` : item.name)
-              files.push(...subFiles)
-            }
-          }
-          return files
+        // Get all files from flows bucket (simplified approach)
+        const { data: files, error: storageError } = await supabaseClient.storage
+          .from('flows')
+          .list('', { limit: 1000 })
+        
+        if (storageError) {
+          console.error('Storage error:', storageError)
+          return new Response(JSON.stringify({ error: 'Storage error' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
         }
         
-        const allFiles = await getAllFiles()
-        
-        if (allFiles.length === 0) {
+        if (!files || files.length === 0) {
           return new Response(JSON.stringify({ error: 'No files found' }), {
             status: 404,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         }
         
-        // Get file info for each file to get actual sizes
-        const filesWithInfo = await Promise.all(
-          allFiles.map(async (file) => {
-            try {
-              const { data: fileInfo } = await supabaseClient.storage
-                .from('flows')
-                .getPublicUrl(file.fullPath)
-              
-              // Try to get file metadata
-              const response = await fetch(fileInfo.publicUrl, { method: 'HEAD' })
-              const contentLength = response.headers.get('content-length')
-              
-              return {
-                ...file,
-                name: file.fullPath, // Use full path as name
-                metadata: {
-                  ...file.metadata,
-                  size: contentLength ? parseInt(contentLength) : 0,
-                  mimetype: file.metadata?.mimetype || 'application/octet-stream'
-                }
-              }
-            } catch (error) {
-              console.error(`Error getting info for ${file.fullPath}:`, error)
-              return {
-                ...file,
-                name: file.fullPath,
-                metadata: {
-                  ...file.metadata,
-                  size: 0,
-                  mimetype: 'application/octet-stream'
-                }
-              }
-            }
-          })
-        )
+        // Return files with proper metadata
+        const filesWithInfo = files.map(file => ({
+          name: file.name,
+          metadata: {
+            mimetype: file.metadata?.mimetype || 'application/octet-stream',
+            size: file.metadata?.size || 0
+          }
+        }))
         
         return new Response(JSON.stringify(filesWithInfo), {
           status: 200,
@@ -302,12 +258,60 @@ serve(async (req) => {
         const { recommendation } = await req.json()
         const { app, flow, screens } = recommendation || {}
 
-        // For now, return empty inspirations
-        // This would normally query your inspirations database
+        // Query the flows table for matching screens
+        let query = supabaseClient
+          .from('flows')
+          .select('*')
+          .ilike('app_name', `%${app}%`)
+
+        if (flow) {
+          query = query.ilike('flow_name', `%${flow}%`)
+        }
+
+        const { data: flows, error: flowsError } = await query
+
+        if (flowsError) {
+          console.error('Flows query error:', flowsError)
+          return new Response(
+            JSON.stringify({ error: 'Failed to query flows' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if (!flows || flows.length === 0) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: [],
+              sources: [],
+              isPerplexityFallback: false
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        // Get screens for each flow
+        const flowsWithScreens = await Promise.all(
+          flows.map(async (flowItem) => {
+            const { data: screens, error: screensError } = await supabaseClient
+              .from('screens')
+              .select('*')
+              .eq('flow_id', flowItem.id)
+              .order('order')
+
+            if (screensError) {
+              console.error('Screens query error:', screensError)
+              return { ...flowItem, screens: [] }
+            }
+
+            return { ...flowItem, screens: screens || [] }
+          })
+        )
+
         return new Response(
           JSON.stringify({
             ok: true,
-            data: [],
+            data: flowsWithScreens,
             sources: [],
             isPerplexityFallback: false
           }),
@@ -356,8 +360,8 @@ serve(async (req) => {
       }
 
       const systemPrompt = settings?.system_prompt || 'You are a helpful AI assistant.'
-      const finalProvider = provider || settings?.provider || 'anthropic'
-      const finalModel = model || settings?.model || 'claude-3-5-haiku-20241022'
+      const finalProvider = settings?.provider || 'anthropic'
+      const finalModel = settings?.model || 'claude-3-5-haiku-20241022'
 
       // Search knowledge base for relevant documents from flows bucket
       let relevantDocs = []
