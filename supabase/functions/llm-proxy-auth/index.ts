@@ -258,27 +258,20 @@ serve(async (req) => {
         const { recommendation } = await req.json()
         const { app, flow, screens } = recommendation || {}
 
-        // Query the flows table for matching screens
-        let query = supabaseClient
+        // Get all files from flows storage bucket
+        const { data: files, error: storageError } = await supabaseClient.storage
           .from('flows')
-          .select('*')
-          .ilike('app_name', `%${app}%`)
+          .list('', { limit: 1000 })
 
-        if (flow) {
-          query = query.ilike('flow_name', `%${flow}%`)
-        }
-
-        const { data: flows, error: flowsError } = await query
-
-        if (flowsError) {
-          console.error('Flows query error:', flowsError)
+        if (storageError) {
+          console.error('Storage error:', storageError)
           return new Response(
-            JSON.stringify({ error: 'Failed to query flows' }),
+            JSON.stringify({ error: 'Failed to access storage' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        if (!flows || flows.length === 0) {
+        if (!files || files.length === 0) {
           return new Response(
             JSON.stringify({
               ok: true,
@@ -290,28 +283,58 @@ serve(async (req) => {
           )
         }
 
-        // Get screens for each flow
-        const flowsWithScreens = await Promise.all(
-          flows.map(async (flowItem) => {
-            const { data: screens, error: screensError } = await supabaseClient
-              .from('screens')
-              .select('*')
-              .eq('flow_id', flowItem.id)
-              .order('order')
-
-            if (screensError) {
-              console.error('Screens query error:', screensError)
-              return { ...flowItem, screens: [] }
-            }
-
-            return { ...flowItem, screens: screens || [] }
+        // Group files by app/flow structure
+        const flowsMap = new Map()
+        
+        for (const file of files) {
+          // Skip non-image files
+          if (!file.metadata?.mimetype?.startsWith('image/')) continue
+          
+          // Parse file path to extract app and flow
+          const pathParts = file.name.split('/')
+          if (pathParts.length < 2) continue
+          
+          const appName = pathParts[0]
+          const flowName = pathParts[1]
+          const fileName = pathParts[pathParts.length - 1]
+          
+          const flowKey = `${appName}_${flowName}`
+          
+          if (!flowsMap.has(flowKey)) {
+            flowsMap.set(flowKey, {
+              appName,
+              flowName,
+              screens: []
+            })
+          }
+          
+          flowsMap.get(flowKey).screens.push({
+            name: fileName,
+            imageUrl: file.name,
+            order: parseInt(fileName.split('.')[0]) || 0
           })
-        )
+        }
+
+        // Convert to array and filter by app/flow if specified
+        let flows = Array.from(flowsMap.values())
+        
+        if (app) {
+          flows = flows.filter(f => f.appName.toLowerCase().includes(app.toLowerCase()))
+        }
+        
+        if (flow) {
+          flows = flows.filter(f => f.flowName.toLowerCase().includes(flow.toLowerCase()))
+        }
+
+        // Sort screens by order
+        flows.forEach(f => {
+          f.screens.sort((a, b) => a.order - b.order)
+        })
 
         return new Response(
           JSON.stringify({
             ok: true,
-            data: flowsWithScreens,
+            data: flows,
             sources: [],
             isPerplexityFallback: false
           }),
