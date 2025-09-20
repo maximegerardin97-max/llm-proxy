@@ -70,8 +70,13 @@ serve(async (req) => {
     if (path.includes('/knowledge')) {
       // GET /knowledge - Return knowledge base files
       try {
-        // Get all files from flows bucket (simplified approach)
-        const { data: files, error: storageError } = await supabaseClient.storage
+        // Get all files from flows bucket using service role
+        const serviceClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        )
+        
+        const { data: files, error: storageError } = await serviceClient.storage
           .from('flows')
           .list('', { limit: 1000 })
         
@@ -258,8 +263,13 @@ serve(async (req) => {
         const { recommendation } = await req.json()
         const { app, flow, screens } = recommendation || {}
 
-        // Get all files from flows storage bucket
-        const { data: files, error: storageError } = await supabaseClient.storage
+        // Get all files from flows storage bucket using service role
+        const serviceClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        )
+        
+        const { data: files, error: storageError } = await serviceClient.storage
           .from('flows')
           .list('', { limit: 1000 })
 
@@ -389,7 +399,12 @@ serve(async (req) => {
       // Search knowledge base for relevant documents from flows bucket
       let relevantDocs = []
       try {
-        const { data: files, error: storageError } = await supabaseClient.storage
+        const serviceClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        )
+        
+        const { data: files, error: storageError } = await serviceClient.storage
           .from('flows')
           .list('', { limit: 1000 })
         
