@@ -15,28 +15,14 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client with user's JWT
+    // Create Supabase client with service role key for llm-proxy platform
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get the user from the JWT token
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', details: authError?.message }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
+    // Use hardcoded test user for llm-proxy platform
+    const user = { id: 'test-user-llm-proxy' }
 
     // Parse request body
     const { message, provider, model, temperature, maxTokens, conversation_id } = await req.json()
