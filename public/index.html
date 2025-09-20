@@ -1712,8 +1712,12 @@
 
             async loadKnowledge() {
                 try {
+                    console.log('🔍 Loading knowledge base...');
+                    const knowledgeList = document.getElementById('knowledge-list');
+                    knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">🔄 Loading knowledge base...</div>';
+                    
                     // Use Edge Function to access the flows bucket
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy/knowledge', {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy/knowledge?t=' + Date.now(), {
                         headers: {
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
@@ -1725,6 +1729,7 @@
                     }
                     
                     const data = await response.json();
+                    console.log('📊 Data received:', data.length, 'files');
                     
                     const knowledgeList = document.getElementById('knowledge-list');
                     
@@ -1781,8 +1786,12 @@
 
             async loadStats() {
                 try {
+                    console.log('📊 Loading stats...');
+                    document.getElementById('total-docs').textContent = '🔄';
+                    document.getElementById('total-size').textContent = '🔄';
+                    
                     // Use Edge Function to access the flows bucket
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy/knowledge', {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy/knowledge?t=' + Date.now(), {
                         headers: {
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
@@ -1794,6 +1803,7 @@
                     }
                     
                     const data = await response.json();
+                    console.log('📊 Stats data received:', data.length, 'files');
                     
                     document.getElementById('total-docs').textContent = data ? data.length : 0;
                     const totalSize = data ? data.reduce((sum, doc) => sum + (doc.metadata?.size || 0), 0) : 0;
