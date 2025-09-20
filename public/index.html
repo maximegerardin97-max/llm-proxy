@@ -1731,8 +1731,6 @@
                     const data = await response.json();
                     console.log('📊 Data received:', data.length, 'files');
                     
-                    const knowledgeList = document.getElementById('knowledge-list');
-                    
                     if (!data || data.length === 0) {
                         knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
                         return;
@@ -1759,7 +1757,6 @@
                     }).join('');
                 } catch (error) {
                     console.error('Failed to load knowledge:', error);
-                    const knowledgeList = document.getElementById('knowledge-list');
                     knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Failed to load knowledge base: ' + error.message + '</div>';
                 }
             }
