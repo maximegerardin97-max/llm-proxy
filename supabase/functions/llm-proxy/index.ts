@@ -53,7 +53,7 @@ serve(async (req) => {
 
     const systemPrompt = settings?.system_prompt || 'You are a helpful AI assistant.'
     const finalProvider = provider || settings?.provider || 'openai'
-    const finalModel = model || settings?.model || 'gpt-4o'
+    const finalModel = model || settings?.model || (provider === 'anthropic' ? 'claude-3-5-sonnet-20240620' : 'gpt-4o')
 
     // Search knowledge base for relevant documents from flows bucket
     let relevantDocs = []
