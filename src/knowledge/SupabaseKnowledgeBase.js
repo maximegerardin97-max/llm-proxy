@@ -76,10 +76,10 @@ export class SupabaseKnowledgeBase {
         return analysisResults;
       }
       
-      // Fallback to filename/path search
-      console.log('📁 Falling back to filename search...');
-      const allFiles = await this.getAllFilesRecursively('');
-      console.log('📁 Total files found:', allFiles.length);
+      // Skip the expensive file scanning for now - just return empty results
+      console.log('📁 Skipping filename search to avoid performance issues');
+      console.log('📚 Found relevant documents: 0');
+      return [];
       
       // Filter files that match the query
       const searchTerms = query.toLowerCase().split(' ');

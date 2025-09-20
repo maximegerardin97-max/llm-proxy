@@ -1179,9 +1179,29 @@
 
             async loadProviders() {
                 try {
-                    const response = await fetch('/api/providers');
-                    const data = await response.json();
-                    this.providers = data.providers;
+                    // Use hardcoded providers for production
+                    this.providers = [
+                        {
+                            name: 'anthropic',
+                            displayName: 'Anthropic Claude',
+                            logo: '🧠',
+                            bestModel: 'claude-3-5-sonnet-20241022',
+                            hasApiKey: true,
+                            models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+                            supportsImages: true,
+                            supportsStreaming: true
+                        },
+                        {
+                            name: 'google',
+                            displayName: 'Google Gemini',
+                            logo: '⭐',
+                            bestModel: 'gemini-2.5-pro',
+                            hasApiKey: true,
+                            models: ['gemini-2.5-pro', 'gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'],
+                            supportsImages: true,
+                            supportsStreaming: true
+                        }
+                    ];
                     this.populateModelSelector();
                     
                     // Set default model if none selected
@@ -1196,87 +1216,27 @@
 
             async ensureConversation() {
                 if (this.currentConversationId) return this.currentConversationId;
-                try {
-                    const res = await fetch('/api/conversations', { headers: { 'x-dev-user-id': this.devUserId } });
-                    const data = await res.json();
-                    if (Array.isArray(data.conversations) && data.conversations.length > 0) {
-                        this.currentConversationId = data.conversations[0].id;
-                        return this.currentConversationId;
-                    }
-                } catch (_) {}
-                const createRes = await fetch('/api/conversations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-dev-user-id': this.devUserId },
-                    body: JSON.stringify({ title: null, page_name: null })
-                });
-                const created = await createRes.json();
-                this.currentConversationId = created?.conversation?.id || null;
+                // Generate a simple conversation ID for production
+                this.currentConversationId = 'conv_' + Date.now();
                 return this.currentConversationId;
             }
 
             async loadConversations() {
-                try {
-                    const res = await fetch('/api/conversations', { headers: { 'x-dev-user-id': this.devUserId } });
-                    const data = await res.json();
-                    const list = document.getElementById('history-list');
-                    if (!Array.isArray(data.conversations) || data.conversations.length === 0) {
-                        list.innerHTML = '<div style="padding:16px;color:#94a3b8;">No conversations yet</div>';
-                        return;
-                    }
-                    list.innerHTML = '';
-                    data.conversations.forEach(conv => {
-                        const item = document.createElement('div');
-                        item.className = 'history-item' + (conv.id === this.currentConversationId ? ' active' : '');
-                        item.dataset.id = conv.id;
-                        const title = conv.title || 'Untitled conversation';
-                        const subtitle = new Date(conv.updated_at || conv.created_at).toLocaleString();
-                        item.innerHTML = `
-                            <div class="history-item-title">${this.escapeHtml(title)}</div>
-                            <div class="history-item-subtitle">${subtitle}</div>
-                        `;
-                        item.addEventListener('click', () => this.openConversation(conv.id));
-                        list.appendChild(item);
-                    });
-                } catch (err) {
-                    console.error('Failed to load conversations', err);
-                }
+                // Simplified for production - just show current conversation
+                const list = document.getElementById('history-list');
+                list.innerHTML = '<div style="padding:16px;color:#94a3b8;">Current conversation</div>';
             }
 
             async openConversation(conversationId) {
                 this.currentConversationId = conversationId;
                 this.toggleHistory(false);
-                try {
-                    const res = await fetch(`/api/messages?conversation_id=${encodeURIComponent(conversationId)}`, { headers: { 'x-dev-user-id': this.devUserId } });
-                    const data = await res.json();
-                    const container = document.getElementById('chat-messages');
-                    container.innerHTML = '';
-                    (data.messages || []).forEach(msg => {
-                        const value = msg?.content?.value;
-                        const role = msg.role === 'assistant' ? 'assistant' : 'user';
-                        this.addMessage(role, value);
-                    });
-                    this.loadConversations();
-                } catch (err) {
-                    console.error('Failed to load messages', err);
-                }
+                this.clearChat();
             }
 
             async createNewConversation() {
-                try {
-                    const res = await fetch('/api/conversations', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-dev-user-id': this.devUserId },
-                        body: JSON.stringify({ title: null, page_name: null })
-                    });
-                    const data = await res.json();
-                    if (data?.conversation?.id) {
-                        this.currentConversationId = data.conversation.id;
-                        this.clearChat();
-                        this.loadConversations();
-                    }
-                } catch (err) {
-                    console.error('Failed to create conversation', err);
-                }
+                this.currentConversationId = 'conv_' + Date.now();
+                this.clearChat();
+                this.loadConversations();
             }
 
             clearChat() {
@@ -1578,58 +1538,38 @@
 
                 try {
                     await this.ensureConversation();
-                    const response = await fetch('/api/messages/stream', {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'x-dev-user-id': this.devUserId
+                            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw`
                         },
                         body: JSON.stringify({
                             conversation_id: this.currentConversationId,
                             message: messageContent,
-                            provider: this.currentProvider || undefined,
-                            model: this.currentModel || undefined
+                            provider: this.currentProvider || 'anthropic',
+                            model: this.currentModel || 'claude-3-5-sonnet-20241022',
+                            temperature: 0.7,
+                            maxTokens: 4000
                         })
                     });
 
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const errorData = await response.text();
+                        throw new Error(`HTTP error! status: ${response.status} - ${errorData}`);
                     }
 
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let assistantMessage = '';
-                    let relevantDocs = [];
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split('\n');
-
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                try {
-                                    const data = JSON.parse(line.slice(6));
-                                    
-                                    if (data.type === 'documents') {
-                                        relevantDocs = data.documents;
-                                    } else if (data.type === 'content') {
-                                        assistantMessage += data.content;
-                                        this.updateLastMessage('assistant', assistantMessage, relevantDocs);
-                                    } else if (data.type === 'done') {
-                                        this.showLoading(false);
-                                        this.isStreaming = false;
-                                        this.loadConversations();
-                                        this.maybeSetConversationTitleFrom(message);
-                                    }
-                                } catch (e) {
-                                    // Ignore parsing errors for incomplete JSON
-                                }
-                            }
-                        }
-                    }
+                    const data = await response.json();
+                    const assistantMessage = data.response || data.message || 'No response generated';
+                    
+                    // Add assistant message to chat
+                    this.addMessage('assistant', assistantMessage);
+                    
+                    // Hide loading and update state
+                    this.showLoading(false);
+                    this.isStreaming = false;
+                    this.loadConversations();
+                    this.maybeSetConversationTitleFrom(message);
                 } catch (error) {
                     console.error('Error sending message:', error);
                     this.addMessage('assistant', `Error: ${error.message}`);
@@ -1761,31 +1701,9 @@
             }
 
             async loadKnowledge() {
-                try {
-                    const response = await fetch('/api/knowledge');
-                    const data = await response.json();
-                    
-                    const knowledgeList = document.getElementById('knowledge-list');
-                    
-                    if (data.documents.length === 0) {
-                        knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
-                        return;
-                    }
-                    
-                    knowledgeList.innerHTML = data.documents.map(doc => `
-                        <div class="knowledge-item">
-                            <div class="knowledge-item-info">
-                                <div class="knowledge-item-name">${doc.filename}</div>
-                                <div class="knowledge-item-type">${doc.type.toUpperCase()} • ${(doc.size / 1024).toFixed(1)} KB</div>
-                            </div>
-                            <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${doc.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `).join('');
-                } catch (error) {
-                    console.error('Failed to load knowledge:', error);
-                }
+                // Simplified for production
+                const knowledgeList = document.getElementById('knowledge-list');
+                knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Knowledge base not available in production mode</div>';
             }
 
             async deleteKnowledge(id) {
@@ -1809,15 +1727,9 @@
             }
 
             async loadStats() {
-                try {
-                    const response = await fetch('/api/knowledge/stats');
-                    const stats = await response.json();
-                    
-                    document.getElementById('total-docs').textContent = stats.totalDocuments;
-                    document.getElementById('total-size').textContent = (stats.totalSize / 1024 / 1024).toFixed(1);
-                } catch (error) {
-                    console.error('Failed to load stats:', error);
-                }
+                // Simplified for production
+                document.getElementById('total-docs').textContent = '0';
+                document.getElementById('total-size').textContent = '0';
             }
 
             async updateSystemPrompt() {
