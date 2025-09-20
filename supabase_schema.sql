@@ -8,6 +8,17 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
+-- Knowledge base documents table
+create table if not exists public.knowledge_documents (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  content text,
+  file_type text,
+  file_size bigint,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- conversations
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
