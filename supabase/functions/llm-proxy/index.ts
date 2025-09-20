@@ -15,13 +15,13 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client with service role key for llm-proxy platform
+    // Create Supabase client with service role key - NO AUTH REQUIRED
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Use hardcoded test user for llm-proxy platform
+    // Use hardcoded test user - NO AUTH REQUIRED
     const user = { id: 'test-user-llm-proxy' }
 
     // Parse request body
