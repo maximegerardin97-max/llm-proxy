@@ -117,6 +117,28 @@ serve(async (req) => {
         aiResponse = data.choices[0]?.message?.content || 'No response generated'
 
       } else if (finalProvider === 'anthropic') {
+        // Convert message format for Claude
+        let claudeMessage
+        if (Array.isArray(message)) {
+          claudeMessage = message.map(item => {
+            if (item.type === 'text') {
+              return { type: 'text', text: item.text }
+            } else if (item.type === 'image_url') {
+              return {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: item.image_url.url.split(',')[1]
+                }
+              }
+            }
+            return item
+          })
+        } else {
+          claudeMessage = [{ type: 'text', text: message }]
+        }
+
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -132,7 +154,7 @@ serve(async (req) => {
             messages: [
               {
                 role: 'user',
-                content: Array.isArray(message) ? message : [{ type: 'text', text: message }]
+                content: claudeMessage
               }
             ]
           })
