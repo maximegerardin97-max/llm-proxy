@@ -1711,7 +1711,7 @@
 
             async loadKnowledge() {
                 try {
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/screens?select=*', {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows', {
                         headers: {
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
@@ -1721,7 +1721,7 @@
                     
                     const knowledgeList = document.getElementById('knowledge-list');
                     
-                    if (data.length === 0) {
+                    if (!data || data.length === 0) {
                         knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
                         return;
                     }
@@ -1729,10 +1729,10 @@
                     knowledgeList.innerHTML = data.map(doc => `
                         <div class="knowledge-item">
                             <div class="knowledge-item-info">
-                                <div class="knowledge-item-name">${doc.filename || 'Untitled'}</div>
-                                <div class="knowledge-item-type">${doc.type?.toUpperCase() || 'DOCUMENT'} • ${doc.size ? (doc.size / 1024).toFixed(1) + ' KB' : 'Unknown size'}</div>
+                                <div class="knowledge-item-name">${doc.name || 'Untitled'}</div>
+                                <div class="knowledge-item-type">${doc.metadata?.mimetype?.toUpperCase() || 'DOCUMENT'} • ${doc.metadata?.size ? (doc.metadata.size / 1024).toFixed(1) + ' KB' : 'Unknown size'}</div>
                             </div>
-                            <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${doc.id}')">
+                            <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${doc.name}')">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -1766,7 +1766,7 @@
 
             async loadStats() {
                 try {
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/screens?select=count,size', {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows', {
                         headers: {
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
@@ -1774,8 +1774,8 @@
                     });
                     const data = await response.json();
                     
-                    document.getElementById('total-docs').textContent = data.length;
-                    const totalSize = data.reduce((sum, doc) => sum + (doc.size || 0), 0);
+                    document.getElementById('total-docs').textContent = data ? data.length : 0;
+                    const totalSize = data ? data.reduce((sum, doc) => sum + (doc.metadata?.size || 0), 0) : 0;
                     document.getElementById('total-size').textContent = (totalSize / 1024 / 1024).toFixed(1);
                 } catch (error) {
                     console.error('Failed to load stats:', error);

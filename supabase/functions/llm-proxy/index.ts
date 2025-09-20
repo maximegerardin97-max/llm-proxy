@@ -61,16 +61,21 @@ serve(async (req) => {
     const finalProvider = provider || settings?.provider || 'openai'
     const finalModel = model || settings?.model || 'gpt-4o'
 
-    // Search knowledge base for relevant documents
+    // Search knowledge base for relevant documents from flows bucket
     let relevantDocs = []
     try {
-      const { data: docs } = await supabaseClient
-        .from('screens')
-        .select('*')
-        .textSearch('analysis', message.toString().toLowerCase())
-        .limit(5)
+      const { data: files } = await supabaseClient.storage
+        .from('flows')
+        .list('', { limit: 100 })
       
-      relevantDocs = docs || []
+      if (files) {
+        // Search through file names and metadata for relevant documents
+        const searchTerm = message.toString().toLowerCase()
+        relevantDocs = files.filter(file => 
+          file.name.toLowerCase().includes(searchTerm) ||
+          (file.metadata && JSON.stringify(file.metadata).toLowerCase().includes(searchTerm))
+        ).slice(0, 5)
+      }
     } catch (error) {
       console.error('Knowledge base search error:', error)
     }
@@ -79,7 +84,7 @@ serve(async (req) => {
     let enhancedSystemPrompt = systemPrompt
     if (relevantDocs.length > 0) {
       const knowledgeContext = relevantDocs.map(doc => 
-        `Document: ${doc.filename}\nContent: ${doc.analysis}\n`
+        `Document: ${doc.name}\nType: ${doc.metadata?.mimetype || 'unknown'}\nSize: ${doc.metadata?.size || 'unknown'} bytes\n`
       ).join('\n')
       enhancedSystemPrompt += `\n\nRelevant knowledge base documents:\n${knowledgeContext}`
     }
