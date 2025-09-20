@@ -124,12 +124,17 @@ serve(async (req) => {
             if (item.type === 'text') {
               return { type: 'text', text: item.text }
             } else if (item.type === 'image_url') {
+              // Extract the actual media type from the data URL
+              const dataUrl = item.image_url.url
+              const mediaTypeMatch = dataUrl.match(/data:([^;]+);/)
+              const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : 'image/jpeg'
+              
               return {
                 type: 'image',
                 source: {
                   type: 'base64',
-                  media_type: 'image/jpeg',
-                  data: item.image_url.url.split(',')[1]
+                  media_type: mediaType,
+                  data: dataUrl.split(',')[1]
                 }
               }
             }

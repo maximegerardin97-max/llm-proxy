@@ -1712,12 +1712,21 @@
 
             async loadKnowledge() {
                 try {
-                    // Use the correct storage API endpoint with proper headers
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows?limit=100', {
+                    // Try different approaches to get files
+                    let response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows', {
                         headers: {
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
                         }
                     });
+                    
+                    // If that fails, try with limit parameter
+                    if (!response.ok) {
+                        response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows?limit=100', {
+                            headers: {
+                                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
+                            }
+                        });
+                    }
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1780,12 +1789,21 @@
 
             async loadStats() {
                 try {
-                    // Use the correct storage API endpoint with proper headers
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows?limit=100', {
+                    // Try different approaches to get files
+                    let response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows', {
                         headers: {
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
                         }
                     });
+                    
+                    // If that fails, try with limit parameter
+                    if (!response.ok) {
+                        response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows?limit=100', {
+                            headers: {
+                                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
+                            }
+                        });
+                    }
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
