@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Proxy - Auth Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #1a202c;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 LLM Proxy Authentication Test</h1>
+        <p>This page tests the authentication flow for the LLM Proxy application.</p>
+
+        <div id="auth-status" class="status info">
+            <strong>Status:</strong> <span id="status-text">Checking authentication...</span>
+        </div>
+
+        <div class="test-section">
+            <h3>Authentication Test</h3>
+            <button id="check-auth">Check Current Auth Status</button>
+            <button id="test-endpoint">Test llm-proxy-auth Endpoint</button>
+            <button id="sign-out">Sign Out</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Results</h3>
+            <div id="test-results">
+                <p>Click the buttons above to run tests...</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>User Information</h3>
+            <pre id="user-info">Not loaded yet</pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase
+        const supabase = supabase.createClient(
+            'https://iiolvvdnzrfcffudwocp.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+        );
+
+        let currentUser = null;
+
+        // Check authentication status
+        async function checkAuth() {
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    updateStatus('error', `Authentication error: ${error.message}`);
+                    currentUser = null;
+                } else if (user) {
+                    updateStatus('success', `Authenticated as: ${user.email}`);
+                    currentUser = user;
+                    updateUserInfo(user);
+                } else {
+                    updateStatus('error', 'Not authenticated');
+                    currentUser = null;
+                }
+            } catch (error) {
+                updateStatus('error', `Error checking auth: ${error.message}`);
+                currentUser = null;
+            }
+        }
+
+        // Test the llm-proxy-auth endpoint
+        async function testEndpoint() {
+            if (!currentUser) {
+                addTestResult('error', 'Cannot test endpoint: User not authenticated');
+                return;
+            }
+
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                if (sessionError || !session) {
+                    addTestResult('error', 'No valid session found');
+                    return;
+                }
+
+                addTestResult('info', 'Testing llm-proxy-auth endpoint...');
+
+                const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy-auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({
+                        message: 'Hello, this is a test message',
+                        provider: 'openai',
+                        model: 'gpt-4o',
+                        temperature: 0.7,
+                        maxTokens: 100
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addTestResult('success', `Endpoint test successful! Response: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    const errorText = await response.text();
+                    addTestResult('error', `Endpoint test failed: ${response.status} - ${errorText}`);
+                }
+            } catch (error) {
+                addTestResult('error', `Endpoint test error: ${error.message}`);
+            }
+        }
+
+        // Sign out
+        async function signOut() {
+            try {
+                const { error } = await supabase.auth.signOut();
+                if (error) {
+                    addTestResult('error', `Sign out error: ${error.message}`);
+                } else {
+                    addTestResult('success', 'Successfully signed out');
+                    currentUser = null;
+                    updateStatus('error', 'Not authenticated');
+                    updateUserInfo(null);
+                }
+            } catch (error) {
+                addTestResult('error', `Sign out error: ${error.message}`);
+            }
+        }
+
+        // Update status display
+        function updateStatus(type, message) {
+            const statusDiv = document.getElementById('auth-status');
+            const statusText = document.getElementById('status-text');
+            
+            statusDiv.className = `status ${type}`;
+            statusText.textContent = message;
+        }
+
+        // Add test result
+        function addTestResult(type, message) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `status ${type}`;
+            resultDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        // Update user info display
+        function updateUserInfo(user) {
+            const userInfoDiv = document.getElementById('user-info');
+            if (user) {
+                userInfoDiv.textContent = JSON.stringify({
+                    id: user.id,
+                    email: user.email,
+                    created_at: user.created_at,
+                    last_sign_in_at: user.last_sign_in_at
+                }, null, 2);
+            } else {
+                userInfoDiv.textContent = 'No user information available';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('check-auth').addEventListener('click', checkAuth);
+        document.getElementById('test-endpoint').addEventListener('click', testEndpoint);
+        document.getElementById('sign-out').addEventListener('click', signOut);
+
+        // Check auth on page load
+        checkAuth();
+    </script>
+</body>
+</html>
