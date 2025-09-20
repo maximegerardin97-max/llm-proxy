@@ -258,102 +258,34 @@ serve(async (req) => {
     }
 
     if (path.includes('/inspirations')) {
-      // POST /inspirations - Handle inspirations request
+      // POST /inspirations - Call your existing inspirations function with service role key
       try {
         const { recommendation } = await req.json()
-        const { app, flow, screens } = recommendation || {}
-
-        // Get all files from flows storage bucket using service role
-        const serviceClient = createClient(
-          Deno.env.get('SUPABASE_URL') ?? '',
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-        )
         
-        const { data: files, error: storageError } = await serviceClient.storage
-          .from('flows')
-          .list('', { limit: 1000 })
-
-        if (storageError) {
-          console.error('Storage error:', storageError)
-          return new Response(
-            JSON.stringify({ error: 'Failed to access storage' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-
-        if (!files || files.length === 0) {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              data: [],
-              sources: [],
-              isPerplexityFallback: false
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-
-        // Group files by app/flow structure
-        const flowsMap = new Map()
-        
-        for (const file of files) {
-          // Skip non-image files
-          if (!file.metadata?.mimetype?.startsWith('image/')) continue
-          
-          // Parse file path to extract app and flow
-          const pathParts = file.name.split('/')
-          if (pathParts.length < 2) continue
-          
-          const appName = pathParts[0]
-          const flowName = pathParts[1]
-          const fileName = pathParts[pathParts.length - 1]
-          
-          const flowKey = `${appName}_${flowName}`
-          
-          if (!flowsMap.has(flowKey)) {
-            flowsMap.set(flowKey, {
-              appName,
-              flowName,
-              screens: []
-            })
-          }
-          
-          flowsMap.get(flowKey).screens.push({
-            name: fileName,
-            imageUrl: file.name,
-            order: parseInt(fileName.split('.')[0]) || 0
-          })
-        }
-
-        // Convert to array and filter by app/flow if specified
-        let flows = Array.from(flowsMap.values())
-        
-        if (app) {
-          flows = flows.filter(f => f.appName.toLowerCase().includes(app.toLowerCase()))
-        }
-        
-        if (flow) {
-          flows = flows.filter(f => f.flowName.toLowerCase().includes(flow.toLowerCase()))
-        }
-
-        // Sort screens by order
-        flows.forEach(f => {
-          f.screens.sort((a, b) => a.order - b.order)
+        // Call your existing inspirations function with service role key for storage access
+        const inspirationsUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/inspirations`
+        const inspirationsResponse = await fetch(inspirationsUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ recommendation })
         })
 
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            data: flows,
-            sources: [],
-            isPerplexityFallback: false
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        if (!inspirationsResponse.ok) {
+          throw new Error(`Inspirations function error: ${inspirationsResponse.status}`)
+        }
+
+        const inspirationsData = await inspirationsResponse.json()
+        
+        return new Response(JSON.stringify(inspirationsData), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
       } catch (error) {
-        console.error('Inspirations error:', error)
+        console.error('Inspirations proxy error:', error)
         return new Response(
-          JSON.stringify({ error: 'Failed to load inspirations' }),
+          JSON.stringify({ error: 'Failed to load inspirations', details: error.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
