@@ -1182,6 +1182,16 @@
                     // Use hardcoded providers for production
                     this.providers = [
                         {
+                            name: 'openai',
+                            displayName: 'OpenAI GPT-4',
+                            logo: '🤖',
+                            bestModel: 'gpt-4o',
+                            hasApiKey: true,
+                            models: ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'gpt-4-vision-preview'],
+                            supportsImages: true,
+                            supportsStreaming: true
+                        },
+                        {
                             name: 'anthropic',
                             displayName: 'Anthropic Claude',
                             logo: '🧠',
@@ -1315,7 +1325,6 @@
                 const bestModels = [
                     { name: 'openai', displayName: 'GPT 4o', logo: '🤖', description: "OpenAI's GPT4-o model." },
                     { name: 'anthropic', displayName: 'Claude 4 Sonnet', logo: '🧠', description: "Anthropic's balanced Claude 4 model." },
-                    { name: 'mistral', displayName: 'Mistral Large', logo: '🌊', description: "Mistral's large model." },
                     { name: 'google', displayName: 'Gemini 2.5 Pro', logo: '⭐', description: "Google's powerful model." }
                 ];
 
@@ -1547,8 +1556,8 @@
                         body: JSON.stringify({
                             conversation_id: this.currentConversationId,
                             message: messageContent,
-                            provider: this.currentProvider || 'anthropic',
-                            model: this.currentModel || 'claude-3-5-sonnet-20241022',
+                            provider: this.currentProvider || 'openai',
+                            model: this.currentModel || 'gpt-4o',
                             temperature: 0.7,
                             maxTokens: 4000
                         })
@@ -1701,9 +1710,38 @@
             }
 
             async loadKnowledge() {
-                // Simplified for production
-                const knowledgeList = document.getElementById('knowledge-list');
-                knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Knowledge base not available in production mode</div>';
+                try {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/screens?select=*', {
+                        headers: {
+                            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
+                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+                        }
+                    });
+                    const data = await response.json();
+                    
+                    const knowledgeList = document.getElementById('knowledge-list');
+                    
+                    if (data.length === 0) {
+                        knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No documents uploaded yet</div>';
+                        return;
+                    }
+                    
+                    knowledgeList.innerHTML = data.map(doc => `
+                        <div class="knowledge-item">
+                            <div class="knowledge-item-info">
+                                <div class="knowledge-item-name">${doc.filename || 'Untitled'}</div>
+                                <div class="knowledge-item-type">${doc.type?.toUpperCase() || 'DOCUMENT'} • ${doc.size ? (doc.size / 1024).toFixed(1) + ' KB' : 'Unknown size'}</div>
+                            </div>
+                            <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${doc.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `).join('');
+                } catch (error) {
+                    console.error('Failed to load knowledge:', error);
+                    const knowledgeList = document.getElementById('knowledge-list');
+                    knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Failed to load knowledge base</div>';
+                }
             }
 
             async deleteKnowledge(id) {
@@ -1727,9 +1765,23 @@
             }
 
             async loadStats() {
-                // Simplified for production
-                document.getElementById('total-docs').textContent = '0';
-                document.getElementById('total-size').textContent = '0';
+                try {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/screens?select=count,size', {
+                        headers: {
+                            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
+                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+                        }
+                    });
+                    const data = await response.json();
+                    
+                    document.getElementById('total-docs').textContent = data.length;
+                    const totalSize = data.reduce((sum, doc) => sum + (doc.size || 0), 0);
+                    document.getElementById('total-size').textContent = (totalSize / 1024 / 1024).toFixed(1);
+                } catch (error) {
+                    console.error('Failed to load stats:', error);
+                    document.getElementById('total-docs').textContent = '0';
+                    document.getElementById('total-size').textContent = '0';
+                }
             }
 
             async updateSystemPrompt() {

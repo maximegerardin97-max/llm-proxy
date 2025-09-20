@@ -58,15 +58,64 @@ serve(async (req) => {
     }
 
     const systemPrompt = settings?.system_prompt || 'You are a helpful AI assistant.'
-    const finalProvider = provider || settings?.provider || 'anthropic'
-    const finalModel = model || settings?.model || 'claude-3-5-sonnet-20241022'
+    const finalProvider = provider || settings?.provider || 'openai'
+    const finalModel = model || settings?.model || 'gpt-4o'
+
+    // Search knowledge base for relevant documents
+    let relevantDocs = []
+    try {
+      const { data: docs } = await supabaseClient
+        .from('screens')
+        .select('*')
+        .textSearch('analysis', message.toString().toLowerCase())
+        .limit(5)
+      
+      relevantDocs = docs || []
+    } catch (error) {
+      console.error('Knowledge base search error:', error)
+    }
+
+    // Enhance system prompt with knowledge base context
+    let enhancedSystemPrompt = systemPrompt
+    if (relevantDocs.length > 0) {
+      const knowledgeContext = relevantDocs.map(doc => 
+        `Document: ${doc.filename}\nContent: ${doc.analysis}\n`
+      ).join('\n')
+      enhancedSystemPrompt += `\n\nRelevant knowledge base documents:\n${knowledgeContext}`
+    }
 
     // Call the appropriate AI provider
     let aiResponse
     try {
       console.log('Calling AI provider:', finalProvider, finalModel)
       
-      if (finalProvider === 'anthropic') {
+      if (finalProvider === 'openai') {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: finalModel,
+            messages: [
+              { role: 'system', content: enhancedSystemPrompt },
+              { role: 'user', content: Array.isArray(message) ? message : [{ type: 'text', text: message }] }
+            ],
+            max_tokens: maxTokens || 4000,
+            temperature: temperature || 0.7
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.text()
+          throw new Error(`OpenAI API error: ${response.status} ${errorData}`)
+        }
+
+        const data = await response.json()
+        aiResponse = data.choices[0]?.message?.content || 'No response generated'
+
+      } else if (finalProvider === 'anthropic') {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -78,7 +127,7 @@ serve(async (req) => {
             model: finalModel,
             max_tokens: maxTokens || 4000,
             temperature: temperature || 0.7,
-            system: systemPrompt,
+            system: enhancedSystemPrompt,
             messages: [
               {
                 role: 'user',
