@@ -12,6 +12,39 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Handle knowledge base requests
+  if (req.method === 'GET' && req.url.includes('/knowledge')) {
+    try {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+      
+      const { data: files, error: storageError } = await supabaseClient.storage
+        .from('flows')
+        .list('', { limit: 100 })
+      
+      if (storageError) {
+        console.error('Storage error:', storageError)
+        return new Response(JSON.stringify({ error: 'Failed to load knowledge base' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+      
+      return new Response(JSON.stringify(files || []), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Knowledge base error:', error)
+      return new Response(JSON.stringify({ error: 'Failed to load knowledge base' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+  }
+
   try {
     // Create Supabase client with service role key
     const supabaseClient = createClient(
