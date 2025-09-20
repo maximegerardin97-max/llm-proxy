@@ -22,7 +22,7 @@ serve(async (req) => {
       
       const { data: files, error: storageError } = await supabaseClient.storage
         .from('flows')
-        .list('', { limit: 100 })
+        .list('', { limit: 1000 })
       
       if (storageError) {
         console.error('Storage error:', storageError)
@@ -32,7 +32,41 @@ serve(async (req) => {
         })
       }
       
-      return new Response(JSON.stringify(files || []), {
+      // Get file info for each file to get actual sizes
+      const filesWithInfo = await Promise.all(
+        (files || []).map(async (file) => {
+          try {
+            const { data: fileInfo } = await supabaseClient.storage
+              .from('flows')
+              .getPublicUrl(file.name)
+            
+            // Try to get file metadata
+            const response = await fetch(fileInfo.publicUrl, { method: 'HEAD' })
+            const contentLength = response.headers.get('content-length')
+            
+            return {
+              ...file,
+              metadata: {
+                ...file.metadata,
+                size: contentLength ? parseInt(contentLength) : 0,
+                mimetype: file.metadata?.mimetype || 'application/octet-stream'
+              }
+            }
+          } catch (error) {
+            console.error(`Error getting info for ${file.name}:`, error)
+            return {
+              ...file,
+              metadata: {
+                ...file.metadata,
+                size: 0,
+                mimetype: 'application/octet-stream'
+              }
+            }
+          }
+        })
+      )
+      
+      return new Response(JSON.stringify(filesWithInfo), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -93,7 +127,7 @@ serve(async (req) => {
     try {
       const { data: files, error: storageError } = await supabaseClient.storage
         .from('flows')
-        .list('', { limit: 100 })
+        .list('', { limit: 1000 })
       
       if (storageError) {
         console.error('Storage error:', storageError)
