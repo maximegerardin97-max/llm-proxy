@@ -1103,6 +1103,7 @@
                 this.loadProviders();
                 this.loadKnowledge();
                 this.loadStats();
+                this.loadSystemPrompt();
                 this.ensureConversation();
                 this.loadConversations();
             }
@@ -1711,8 +1712,8 @@
 
             async loadKnowledge() {
                 try {
-                    // Use service role key for storage access
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows', {
+                    // Use service role key for storage access with correct endpoint
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows?limit=100', {
                         headers: {
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
@@ -1772,7 +1773,7 @@
 
             async loadStats() {
                 try {
-                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows', {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/storage/v1/object/list/flows?limit=100', {
                         headers: {
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
@@ -1792,6 +1793,29 @@
                     console.error('Failed to load stats:', error);
                     document.getElementById('total-docs').textContent = '0';
                     document.getElementById('total-size').textContent = '0';
+                }
+            }
+
+            async loadSystemPrompt() {
+                try {
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/app_settings?select=system_prompt&key=eq.default', {
+                        headers: {
+                            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw',
+                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzUyMTgwMCwiZXhwIjoyMDczMDk3ODAwfQ.sDlDTwowtdPg2GV9DCl53nSURdYd15iQphrzS1oIcsw'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data && data.length > 0 && data[0].system_prompt) {
+                        document.getElementById('system-prompt').value = data[0].system_prompt;
+                    }
+                } catch (error) {
+                    console.error('Failed to load system prompt:', error);
                 }
             }
 
