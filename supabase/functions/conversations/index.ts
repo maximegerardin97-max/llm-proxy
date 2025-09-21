@@ -47,7 +47,7 @@ serve(async (req) => {
       if (error) throw error
 
       return new Response(
-        JSON.stringify({ conversations }),
+        JSON.stringify(conversations || []),
         { 
           status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

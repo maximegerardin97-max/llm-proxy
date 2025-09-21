@@ -159,14 +159,14 @@ serve(async (req) => {
           if (error) throw error
 
           return new Response(
-            JSON.stringify({ conversations: conversations || [] }),
+            JSON.stringify(conversations || []),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         } catch (error) {
           console.error('Load conversations error:', error)
           return new Response(
-            JSON.stringify({ error: 'Failed to load conversations' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify([]),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
       } else if (req.method === 'POST') {
