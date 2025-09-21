@@ -99,8 +99,8 @@ export class Agent {
         { role: 'assistant', content: response.content }
       ];
 
-      // Keep only last 10 exchanges (20 messages)
-      const trimmed = updatedHistory.length > 20 ? updatedHistory.slice(-20) : updatedHistory;
+      // Keep only last 10 messages (5 exchanges) as requested
+      const trimmed = updatedHistory.length > 10 ? updatedHistory.slice(-10) : updatedHistory;
 
       if (sessionId) {
         this.sessionHistories.set(sessionId, trimmed);

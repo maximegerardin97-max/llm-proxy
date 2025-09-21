@@ -1400,6 +1400,9 @@
                         throw new Error('No valid session found. Please sign in again.');
                     }
 
+                    // Ensure profile exists first
+                    await this.ensureProfile();
+
                     const { data: conversations, error } = await this.supabase
                         .from('conversations')
                         .select('id, title, created_at')
@@ -1434,6 +1437,56 @@
                 }
             }
 
+            async ensureProfile() {
+                try {
+                    // Check if profile exists
+                    const { data: profile, error: profileError } = await this.supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('id', this.user.id)
+                        .single();
+
+                    if (profileError && profileError.code === 'PGRST116') {
+                        // Profile doesn't exist, create it via Edge Function
+                        console.log('Creating profile for user:', this.user.id);
+                        const { data: { session } } = await this.supabase.auth.getSession();
+                        
+                        const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy-auth', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${session.access_token}`
+                            },
+                            body: JSON.stringify({
+                                action: 'ensure_profile',
+                                user_id: this.user.id,
+                                email: this.user.email
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.text();
+                            console.error('Error creating profile via Edge Function:', errorData);
+                            // Fallback: try direct insert
+                            const { error: insertError } = await this.supabase
+                                .from('profiles')
+                                .insert({
+                                    id: this.user.id,
+                                    email: this.user.email
+                                });
+                            if (insertError) throw insertError;
+                        }
+                    } else if (profileError) {
+                        console.error('Error checking profile:', profileError);
+                        throw profileError;
+                    }
+                } catch (error) {
+                    console.error('Error ensuring profile:', error);
+                    // Don't throw - just log the error and continue
+                    console.log('Continuing without profile creation...');
+                }
+            }
+
             async openConversation(conversationId) {
                 this.currentConversationId = conversationId;
                 this.toggleHistory(false);
@@ -1447,6 +1500,9 @@
                     if (sessionError || !session) {
                         throw new Error('No valid session found. Please sign in again.');
                     }
+
+                    // Ensure profile exists first
+                    await this.ensureProfile();
 
                     const { data: messages, error } = await this.supabase
                         .from('messages')

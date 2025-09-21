@@ -201,16 +201,59 @@ serve(async (req) => {
         : userMessage
     }
 
+    // Get conversation history for context
+    let conversationHistory = []
+    if (conversation_id) {
+      try {
+        console.log('Retrieving conversation history for:', conversation_id)
+        const { data: messages, error: historyError } = await supabaseClient
+          .from('messages')
+          .select('role, content, created_at')
+          .eq('conversation_id', conversation_id)
+          .eq('is_final', true)
+          .order('created_at', { ascending: true })
+          .limit(20) // Get last 20 messages (10 exchanges)
+        
+        if (historyError) {
+          console.error('Error retrieving conversation history:', historyError)
+        } else {
+          conversationHistory = messages || []
+          console.log('Retrieved conversation history:', conversationHistory.length, 'messages')
+        }
+      } catch (e) {
+        console.error('Exception retrieving conversation history:', e)
+      }
+    }
+
     // Call the AI provider with the actual data
     let aiResponse
     try {
       console.log('Calling AI provider:', finalProvider, finalModel)
       console.log('System prompt length:', systemPrompt.length)
       console.log('User message type:', isMultimodal ? 'multimodal' : 'text')
+      console.log('Conversation history length:', conversationHistory.length)
       
       // Add timeout to OpenAI call
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      
+      // Build conversation context
+      let conversationContext = systemPrompt + '\n\n'
+      
+      // Add conversation history
+      if (conversationHistory.length > 0) {
+        conversationContext += 'Previous conversation:\n'
+        conversationHistory.forEach(msg => {
+          if (msg.role === 'user') {
+            conversationContext += `User: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}\n\n`
+          } else if (msg.role === 'assistant') {
+            conversationContext += `Assistant: ${msg.content}\n\n`
+          }
+        })
+      }
+      
+      // Add current message
+      conversationContext += `Current user message: ${typeof finalUserMessage === 'string' ? finalUserMessage : JSON.stringify(finalUserMessage)}`
       
       // Use Google Gemini API instead of OpenAI
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${finalModel}:generateContent?key=${Deno.env.get('GOOGLE_API_KEY')}`, {
@@ -221,7 +264,7 @@ serve(async (req) => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `${systemPrompt}\n\nUser: ${JSON.stringify(finalUserMessage)}`
+              text: conversationContext
             }]
           }],
           generationConfig: {

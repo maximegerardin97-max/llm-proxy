@@ -299,6 +299,60 @@ serve(async (req) => {
       )
     }
 
+    // Handle ensure_profile action
+    if (path.includes('/ensure_profile') || (req.method === 'POST' && body.action === 'ensure_profile')) {
+      try {
+        const { user_id, email } = body
+        console.log('Ensuring profile for user:', user_id, email)
+        
+        // Check if profile exists
+        const { data: existingProfile, error: checkError } = await supabaseClient
+          .from('profiles')
+          .select('id')
+          .eq('id', user_id)
+          .single()
+
+        if (checkError && checkError.code === 'PGRST116') {
+          // Profile doesn't exist, create it
+          const { error: insertError } = await supabaseClient
+            .from('profiles')
+            .insert({
+              id: user_id,
+              email: email
+            })
+
+          if (insertError) {
+            console.error('Error creating profile:', insertError)
+            return new Response(
+              JSON.stringify({ error: 'Failed to create profile', details: insertError.message }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          
+          console.log('Profile created successfully for user:', user_id)
+        } else if (checkError) {
+          console.error('Error checking profile:', checkError)
+          return new Response(
+            JSON.stringify({ error: 'Failed to check profile', details: checkError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } else {
+          console.log('Profile already exists for user:', user_id)
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Profile ensured' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (error) {
+        console.error('Ensure profile error:', error)
+        return new Response(
+          JSON.stringify({ error: 'Ensure profile failed', details: error.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     // Default: Handle chat message (POST /)
     try {
       const { message, provider, model, temperature, maxTokens, conversation_id } = await req.json()
@@ -363,12 +417,62 @@ serve(async (req) => {
         enhancedSystemPrompt += `\n\nRelevant knowledge base documents:\n${knowledgeContext}`
       }
 
+      // Get conversation history for context
+      let conversationHistory = []
+      if (conversation_id) {
+        try {
+          console.log('Retrieving conversation history for:', conversation_id)
+          const { data: messages, error: historyError } = await supabaseClient
+            .from('messages')
+            .select('role, content, created_at')
+            .eq('conversation_id', conversation_id)
+            .eq('is_final', true)
+            .order('created_at', { ascending: true })
+            .limit(20) // Get last 20 messages (10 exchanges)
+          
+          if (historyError) {
+            console.error('Error retrieving conversation history:', historyError)
+          } else {
+            conversationHistory = messages || []
+            console.log('Retrieved conversation history:', conversationHistory.length, 'messages')
+          }
+        } catch (e) {
+          console.error('Exception retrieving conversation history:', e)
+        }
+      }
+
       // Call the appropriate AI provider
       let aiResponse
       try {
         console.log('Calling AI provider:', finalProvider, finalModel)
+        console.log('Conversation history length:', conversationHistory.length)
         
         if (finalProvider === 'openai') {
+          // Build messages array with conversation history
+          const messages = [{ role: 'system', content: enhancedSystemPrompt }]
+          
+          // Add conversation history
+          conversationHistory.forEach(msg => {
+            if (msg.role === 'user') {
+              const content = msg.content?.value || msg.content
+              messages.push({ 
+                role: 'user', 
+                content: Array.isArray(content) ? content : [{ type: 'text', text: content }] 
+              })
+            } else if (msg.role === 'assistant') {
+              messages.push({ 
+                role: 'assistant', 
+                content: msg.content?.value || msg.content 
+              })
+            }
+          })
+          
+          // Add current message
+          messages.push({ 
+            role: 'user', 
+            content: Array.isArray(message) ? message : [{ type: 'text', text: message }] 
+          })
+
           const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -377,10 +481,7 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               model: finalModel,
-              messages: [
-                { role: 'system', content: enhancedSystemPrompt },
-                { role: 'user', content: Array.isArray(message) ? message : [{ type: 'text', text: message }] }
-              ],
+              messages: messages,
               max_tokens: maxTokens || 4000,
               temperature: temperature || 0.7
             })
@@ -395,18 +496,58 @@ serve(async (req) => {
           aiResponse = data.choices[0]?.message?.content || 'No response generated'
 
         } else if (finalProvider === 'anthropic') {
-          // Convert message format for Claude
+          // Build messages array with conversation history for Claude
+          const claudeMessages = []
+          
+          // Add conversation history
+          conversationHistory.forEach(msg => {
+            if (msg.role === 'user') {
+              const content = msg.content?.value || msg.content
+              let claudeMessage
+              if (Array.isArray(content)) {
+                claudeMessage = content.map(item => {
+                  if (item.type === 'text') {
+                    return { type: 'text', text: item.text }
+                  } else if (item.type === 'image_url') {
+                    const dataUrl = item.image_url.url
+                    const mediaTypeMatch = dataUrl.match(/data:([^;]+);/)
+                    const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : 'image/jpeg'
+                    return {
+                      type: 'image',
+                      source: {
+                        type: 'base64',
+                        media_type: mediaType,
+                        data: dataUrl.split(',')[1]
+                      }
+                    }
+                  }
+                  return item
+                })
+              } else {
+                claudeMessage = [{ type: 'text', text: content }]
+              }
+              claudeMessages.push({
+                role: 'user',
+                content: claudeMessage
+              })
+            } else if (msg.role === 'assistant') {
+              claudeMessages.push({
+                role: 'assistant',
+                content: msg.content?.value || msg.content
+              })
+            }
+          })
+          
+          // Add current message
           let claudeMessage
           if (Array.isArray(message)) {
             claudeMessage = message.map(item => {
               if (item.type === 'text') {
                 return { type: 'text', text: item.text }
               } else if (item.type === 'image_url') {
-                // Extract the actual media type from the data URL
                 const dataUrl = item.image_url.url
                 const mediaTypeMatch = dataUrl.match(/data:([^;]+);/)
                 const mediaType = mediaTypeMatch ? mediaTypeMatch[1] : 'image/jpeg'
-                
                 return {
                   type: 'image',
                   source: {
@@ -421,6 +562,10 @@ serve(async (req) => {
           } else {
             claudeMessage = [{ type: 'text', text: message }]
           }
+          claudeMessages.push({
+            role: 'user',
+            content: claudeMessage
+          })
 
           const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -434,12 +579,7 @@ serve(async (req) => {
               max_tokens: maxTokens || 4000,
               temperature: temperature || 0.7,
               system: enhancedSystemPrompt,
-              messages: [
-                {
-                  role: 'user',
-                  content: claudeMessage
-                }
-              ]
+              messages: claudeMessages
             })
           })
 
@@ -452,6 +592,37 @@ serve(async (req) => {
           aiResponse = data.content[0].text
 
         } else if (finalProvider === 'google') {
+          // Build conversation context for Google Gemini
+          let conversationContext = enhancedSystemPrompt + '\n\n'
+          
+          // Add conversation history
+          if (conversationHistory.length > 0) {
+            conversationContext += 'Previous conversation:\n'
+            conversationHistory.forEach(msg => {
+              if (msg.role === 'user') {
+                const content = msg.content?.value || msg.content
+                if (Array.isArray(content)) {
+                  conversationContext += `User: ${content.map(item => 
+                    item.type === 'text' ? item.text : `[Image: ${item.type}]`
+                  ).join(' ')}\n\n`
+                } else {
+                  conversationContext += `User: ${content}\n\n`
+                }
+              } else if (msg.role === 'assistant') {
+                conversationContext += `Assistant: ${msg.content?.value || msg.content}\n\n`
+              }
+            })
+          }
+          
+          // Add current message
+          if (Array.isArray(message)) {
+            conversationContext += `Current user message: ${message.map(item => 
+              item.type === 'text' ? item.text : `[Image: ${item.type}]`
+            ).join(' ')}`
+          } else {
+            conversationContext += `Current user message: ${message}`
+          }
+
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${finalModel}:generateContent?key=${Deno.env.get('GOOGLE_API_KEY')}`, {
             method: 'POST',
             headers: {
@@ -459,14 +630,7 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               contents: [{
-                parts: Array.isArray(message) ? message.map(item => 
-                  item.type === 'text' ? { text: item.text } : {
-                    inline_data: {
-                      mime_type: 'image/jpeg',
-                      data: item.image_url.url.split(',')[1]
-                    }
-                  }
-                ) : [{ text: message }]
+                parts: [{ text: conversationContext }]
               }],
               generationConfig: {
                 temperature: temperature || 0.7,
