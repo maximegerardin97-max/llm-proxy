@@ -92,7 +92,7 @@ serve(async (req) => {
           
           for (const item of items || []) {
             // Check if it's a folder by looking at size and mimetype
-            const isFolder = item.metadata?.size === null || item.metadata?.size === 0 || item.metadata?.mimetype === 'application/octet-stream'
+            const isFolder = item.metadata?.size === null || item.metadata?.size === 0 || item.metadata?.mimetype === 'application/octet-stream' || !item.metadata?.mimetype
             
             if (isFolder) {
               // It's a folder, recurse into it

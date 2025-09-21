@@ -393,19 +393,77 @@ serve(async (req) => {
           Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
         
-        const { data: files, error: storageError } = await serviceClient.storage
-          .from('flows')
-          .list('', { limit: 1000 })
+        // Recursively get all files from flows bucket
+        async function getAllFiles(path = '') {
+          const { data: items, error } = await serviceClient.storage
+            .from('flows')
+            .list(path, { limit: 1000 })
+          
+          if (error) {
+            console.error(`Error listing ${path}:`, error)
+            return []
+          }
+          
+          let allFiles = []
+          
+          for (const item of items || []) {
+            // Check if it's a folder by looking at size and mimetype
+            const isFolder = item.metadata?.size === null || item.metadata?.size === 0 || item.metadata?.mimetype === 'application/octet-stream' || !item.metadata?.mimetype
+            
+            if (isFolder) {
+              // It's a folder, recurse into it
+              const folderPath = path ? `${path}/${item.name}` : item.name
+              const folderFiles = await getAllFiles(folderPath)
+              allFiles = allFiles.concat(folderFiles)
+            } else {
+              // It's a file, add it with full path
+              const fullPath = path ? `${path}/${item.name}` : item.name
+              allFiles.push({
+                ...item,
+                name: fullPath
+              })
+            }
+          }
+          
+          return allFiles
+        }
         
-        if (storageError) {
-          console.error('Storage error:', storageError)
-        } else if (files) {
-          // Search through file names and metadata for relevant documents
+        const allFiles = await getAllFiles()
+        console.log('Total files found for knowledge search:', allFiles.length)
+        
+        if (allFiles.length > 0) {
+          // Search through file names for relevant documents
           const searchTerm = message.toString().toLowerCase()
-          relevantDocs = files.filter(file => 
+          
+          // Prioritize handbooks and design-related files
+          const handbookFiles = allFiles.filter(file => 
+            file.name.toLowerCase().includes('handbook') ||
+            file.name.toLowerCase().includes('guide') ||
+            file.name.toLowerCase().includes('manual') ||
+            file.name.toLowerCase().includes('documentation')
+          )
+          
+          const designFiles = allFiles.filter(file => 
+            file.name.toLowerCase().includes('design') ||
+            file.name.toLowerCase().includes('ui') ||
+            file.name.toLowerCase().includes('ux') ||
+            file.name.toLowerCase().includes('flow')
+          )
+          
+          const generalFiles = allFiles.filter(file => 
             file.name.toLowerCase().includes(searchTerm) ||
             (file.metadata && JSON.stringify(file.metadata).toLowerCase().includes(searchTerm))
-          ).slice(0, 5)
+          )
+          
+          // Combine and prioritize: handbooks first, then design files, then general matches
+          relevantDocs = [
+            ...handbookFiles.slice(0, 3),
+            ...designFiles.slice(0, 2),
+            ...generalFiles.slice(0, 5)
+          ].slice(0, 8) // Limit to 8 most relevant documents
+          
+          console.log('Relevant documents found:', relevantDocs.length)
+          console.log('Sample relevant docs:', relevantDocs.slice(0, 3).map(d => d.name))
         }
       } catch (error) {
         console.error('Knowledge base search error:', error)
@@ -415,9 +473,9 @@ serve(async (req) => {
       let enhancedSystemPrompt = systemPrompt
       if (relevantDocs.length > 0) {
         const knowledgeContext = relevantDocs.map(doc => 
-          `Document: ${doc.name}\nType: ${doc.metadata?.mimetype || 'unknown'}\nSize: ${doc.metadata?.size || 'unknown'} bytes\n`
+          `📄 ${doc.name} (${doc.metadata?.mimetype || 'unknown'}, ${Math.round((doc.metadata?.size || 0) / 1024)}KB)`
         ).join('\n')
-        enhancedSystemPrompt += `\n\nRelevant knowledge base documents:\n${knowledgeContext}`
+        enhancedSystemPrompt += `\n\n📚 Available Knowledge Base Documents:\n${knowledgeContext}\n\nUse these documents to provide accurate, comprehensive answers. Reference specific documents when relevant.`
       }
 
       // Get conversation history for context
