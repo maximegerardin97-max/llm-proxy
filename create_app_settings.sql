@@ -2,20 +2,24 @@
 CREATE TABLE IF NOT EXISTS public.app_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   key text UNIQUE NOT NULL,
-  value text NOT NULL,
-  description text,
+  system_prompt text,
+  provider text,
+  model text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
 -- Insert the design copilot system prompt
-INSERT INTO public.app_settings (key, value, description) 
+INSERT INTO public.app_settings (key, system_prompt, provider, model) 
 VALUES (
-  'design_copilot_prompt', 
-  'You are a design copilot. Analyze the provided design and give specific, actionable feedback. Focus on visual hierarchy, color usage, typography, spacing, and overall user experience. Be concise but thorough in your analysis.',
-  'System prompt for the design copilot agent'
+  'default', 
+  'You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don''t know something, say so clearly.',
+  'openai',
+  'gpt-4o'
 ) ON CONFLICT (key) DO UPDATE SET 
-  value = EXCLUDED.value,
+  system_prompt = EXCLUDED.system_prompt,
+  provider = EXCLUDED.provider,
+  model = EXCLUDED.model,
   updated_at = now();
 
 -- Enable RLS

@@ -299,6 +299,9 @@ serve(async (req) => {
       )
     }
 
+    // Parse request body first
+    const body = await req.json()
+
     // Handle ensure_profile action
     if (path.includes('/ensure_profile') || (req.method === 'POST' && body.action === 'ensure_profile')) {
       try {
@@ -355,7 +358,7 @@ serve(async (req) => {
 
     // Default: Handle chat message (POST /)
     try {
-      const { message, provider, model, temperature, maxTokens, conversation_id } = await req.json()
+      const { message, provider, model, temperature, maxTokens, conversation_id } = body
 
       if (!message) {
         return new Response(

@@ -15,16 +15,142 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client with service role key - NO AUTH REQUIRED
+    // Create Supabase client with service role - NO AUTH REQUIRED
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Use hardcoded test user - NO AUTH REQUIRED
+    // Use hardcoded test user for chat
     const user = { id: 'test-user-llm-proxy' }
 
-    // Parse request body
+    const url = new URL(req.url)
+    const path = url.pathname
+
+    // Handle settings endpoint
+    if (path.includes('/settings')) {
+      try {
+        console.log('Settings endpoint called')
+        const { data: settings, error: settingsError } = await supabaseClient
+          .from('app_settings')
+          .select('system_prompt, provider, model')
+          .eq('key', 'default')
+          .single()
+        
+        if (settingsError) {
+          console.error('Settings error:', settingsError)
+          return new Response(
+            JSON.stringify({ 
+              system_prompt: 'You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don\'t know something, say so clearly.',
+              provider: 'openai',
+              model: 'gpt-4o'
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        console.log('Settings found:', settings)
+        
+        return new Response(
+          JSON.stringify(settings || { 
+            system_prompt: 'You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don\'t know something, say so clearly.',
+            provider: 'openai',
+            model: 'gpt-4o'
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (error) {
+        console.error('Settings endpoint error:', error)
+        return new Response(
+          JSON.stringify({ 
+            system_prompt: 'You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don\'t know something, say so clearly.',
+            provider: 'openai',
+            model: 'gpt-4o'
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Handle knowledge endpoint
+    if (path.includes('/knowledge')) {
+      try {
+        console.log('Knowledge endpoint called')
+        
+        // Recursively get all files from flows bucket
+        async function getAllFiles(path = '') {
+          const { data: items, error } = await supabaseClient.storage
+            .from('flows')
+            .list(path, { limit: 1000 })
+          
+          if (error) {
+            console.error(`Error listing ${path}:`, error)
+            return []
+          }
+          
+          let allFiles = []
+          
+          for (const item of items || []) {
+            // Check if it's a folder by looking at size and mimetype
+            const isFolder = item.metadata?.size === null || item.metadata?.size === 0 || item.metadata?.mimetype === 'application/octet-stream'
+            
+            if (isFolder) {
+              // It's a folder, recurse into it
+              const folderPath = path ? `${path}/${item.name}` : item.name
+              console.log(`📁 Exploring folder: ${folderPath}`)
+              const folderFiles = await getAllFiles(folderPath)
+              allFiles = allFiles.concat(folderFiles)
+            } else {
+              // It's a file, add it with full path
+              const fullPath = path ? `${path}/${item.name}` : item.name
+              console.log(`📄 Found file: ${fullPath}`)
+              allFiles.push({
+                ...item,
+                name: fullPath
+              })
+            }
+          }
+          
+          return allFiles
+        }
+        
+        const allFiles = await getAllFiles()
+        console.log('Total files found recursively:', allFiles.length)
+        console.log('Sample files:', allFiles.slice(0, 5))
+
+        // Filter out folders and only return actual files
+        const actualFiles = allFiles.filter(file => 
+          file.name && 
+          !file.name.endsWith('/') && 
+          file.metadata?.mimetype
+        )
+
+        // Return ALL files - no filtering bullshit
+        const knowledgeFiles = actualFiles.map(file => ({
+          name: file.name,
+          size: file.metadata?.size || 0,
+          created_at: file.created_at,
+          updated_at: file.updated_at,
+          mimetype: file.metadata?.mimetype || 'application/octet-stream'
+        }))
+        
+        console.log('Knowledge files found:', knowledgeFiles.length)
+        console.log('Sample knowledge files:', knowledgeFiles.slice(0, 5))
+        
+        return new Response(
+          JSON.stringify(knowledgeFiles),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (error) {
+        console.error('Knowledge endpoint error:', error)
+        return new Response(
+          JSON.stringify([]),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Parse request body for chat
     const { message, provider, model, temperature, maxTokens, conversation_id } = await req.json()
 
     if (!message) {
