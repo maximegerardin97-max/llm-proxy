@@ -196,6 +196,24 @@
             border-color: #cbd5e1;
         }
 
+        .save-settings-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s;
+        }
+
+        .save-settings-btn:hover {
+            background: #218838;
+        }
+
         .settings-btn {
             background: #f1f5f9;
             color: #475569;
@@ -931,6 +949,9 @@
                             <span id="selected-model">Select Model</span>
                             <i class="fas fa-chevron-down"></i>
                         </button>
+                        <button id="save-settings-btn" class="save-settings-btn" title="Save Settings">
+                            <i class="fas fa-save"></i> Save
+                        </button>
                         <button id="settings-btn" class="settings-btn">
                             <i class="fas fa-cog"></i>
                         </button>
@@ -1027,7 +1048,7 @@
                             placeholder="Enter your system prompt here..."
                         >You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don't know something, say so clearly.</textarea>
                         <button id="update-prompt" class="send-button" style="margin-top: 10px; padding: 10px 15px; font-size: 0.9rem;">
-                            Update Prompt
+                            Save Settings
                         </button>
                     </div>
                 </div>
@@ -1258,6 +1279,7 @@
 
                 // Model selector
                 document.getElementById('model-selector-btn').addEventListener('click', () => this.showModelSelector());
+                document.getElementById('save-settings-btn').addEventListener('click', () => this.updateSystemPrompt());
                 document.getElementById('model-selector').addEventListener('click', (e) => {
                     if (e.target.id === 'model-selector') {
                         this.hideModelSelector();
@@ -2440,12 +2462,33 @@ Punchline: [1-line strong take]`;
 
             async updateSystemPrompt() {
                 const prompt = document.getElementById('system-prompt').value;
+                const model = document.getElementById('model-select').value;
+                const provider = document.getElementById('provider-select').value;
                 
                 try {
-                    // Just show success message - no API call needed
-                    alert('System prompt updated successfully!');
+                    // Update app_settings table via REST API
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/app_settings?key=eq.default', {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
+                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+                        },
+                        body: JSON.stringify({ 
+                            system_prompt: prompt,
+                            model: model,
+                            provider: provider
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert('Settings saved successfully!');
+                    } else {
+                        const error = await response.json();
+                        alert(`Error saving settings: ${error.message}`);
+                    }
                 } catch (error) {
-                    alert(`Error updating prompt: ${error.message}`);
+                    alert(`Error saving settings: ${error.message}`);
                 }
             }
 
