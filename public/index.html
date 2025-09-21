@@ -2462,8 +2462,10 @@ Punchline: [1-line strong take]`;
 
             async updateSystemPrompt() {
                 const prompt = document.getElementById('system-prompt').value;
-                const model = document.getElementById('model-select').value;
-                const provider = document.getElementById('provider-select').value;
+                const model = this.currentModel || 'gpt-4o';
+                const provider = this.currentProvider || 'openai';
+                
+                console.log('💾 Saving settings:', { prompt: prompt.substring(0, 50) + '...', model, provider });
                 
                 try {
                     // Update app_settings table via REST API
@@ -2482,12 +2484,15 @@ Punchline: [1-line strong take]`;
                     });
 
                     if (response.ok) {
+                        console.log('✅ Settings saved successfully!');
                         alert('Settings saved successfully!');
                     } else {
-                        const error = await response.json();
-                        alert(`Error saving settings: ${error.message}`);
+                        const errorText = await response.text();
+                        console.error('❌ Save error:', response.status, errorText);
+                        alert(`Error saving settings: ${response.status} - ${errorText}`);
                     }
                 } catch (error) {
+                    console.error('❌ Save exception:', error);
                     alert(`Error saving settings: ${error.message}`);
                 }
             }
