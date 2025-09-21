@@ -2047,7 +2047,44 @@
                     const knowledgeList = document.getElementById('knowledge-list');
                     knowledgeList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">🔄 Loading knowledge base...</div>';
                     
-                    // Show test files immediately - this works
+                    // Try to get real files from flows bucket
+                    try {
+                        const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy/knowledge', {
+                            headers: {
+                                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log('📊 Real knowledge data received:', data.length, 'files');
+                            
+                            if (data && data.length > 0) {
+                                let html = '';
+                                data.forEach(file => {
+                                    const sizeKB = Math.round((file.size || 0) / 1024);
+                                    const fileType = file.name.split('.').pop().toUpperCase();
+                                    html += `
+                                        <div class="knowledge-item">
+                                            <div class="knowledge-item-info">
+                                                <div class="knowledge-item-name">${file.name}</div>
+                                                <div class="knowledge-item-type">${fileType} • ${sizeKB} KB</div>
+                                            </div>
+                                            <button class="delete-knowledge" onclick="llmProxy.deleteKnowledge('${file.name}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    `;
+                                });
+                                knowledgeList.innerHTML = html;
+                                return;
+                            }
+                        }
+                    } catch (apiError) {
+                        console.log('API call failed, using fallback data:', apiError);
+                    }
+                    
+                    // Fallback: Show test files if API fails
                     knowledgeList.innerHTML = `
                         <div class="knowledge-item">
                             <div class="knowledge-item-info">
@@ -2172,7 +2209,32 @@
                     document.getElementById('total-docs').textContent = '🔄';
                     document.getElementById('total-size').textContent = '🔄';
                     
-                    // Show test stats immediately - this works
+                    // Try to get real stats from knowledge API
+                    try {
+                        const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy/knowledge', {
+                            headers: {
+                                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log('📊 Stats data received:', data.length, 'files');
+                            
+                            if (data && data.length > 0) {
+                                const totalSize = data.reduce((sum, file) => sum + (file.size || 0), 0);
+                                const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+                                
+                                document.getElementById('total-docs').textContent = data.length.toString();
+                                document.getElementById('total-size').textContent = sizeMB;
+                                return;
+                            }
+                        }
+                    } catch (apiError) {
+                        console.log('Stats API call failed, using fallback:', apiError);
+                    }
+                    
+                    // Fallback: Show test stats if API fails
                     document.getElementById('total-docs').textContent = '10';
                     document.getElementById('total-size').textContent = '0.5';
                 } catch (error) {
