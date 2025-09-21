@@ -2271,7 +2271,42 @@
             async loadSystemPrompt() {
                 try {
                     console.log('🔍 Loading system prompt...');
-                    // Set the actual prompt from the database directly
+                    // Fetch from app_settings table
+                    const response = await fetch('https://iiolvvdnzrfcffudwocp.supabase.co/rest/v1/app_settings?key=eq.default', {
+                        headers: {
+                            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw',
+                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('📝 Settings data received:', data);
+                        
+                        if (data && data.length > 0) {
+                            const settings = data[0];
+                            console.log('✅ Loading settings from database:', { 
+                                prompt: settings.system_prompt?.substring(0, 50) + '...', 
+                                model: settings.model, 
+                                provider: settings.provider 
+                            });
+                            
+                            // Set system prompt
+                            document.getElementById('system-prompt').value = settings.system_prompt || 'You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don\'t know something, say so clearly.';
+                            
+                            // Set model and provider
+                            this.currentModel = settings.model || 'gpt-4o';
+                            this.currentProvider = settings.provider || 'openai';
+                            
+                            // Update the UI to show the current model
+                            document.getElementById('selected-model').textContent = this.currentModel;
+                            
+                            return;
+                        }
+                    }
+                    
+                    // Fallback: Use hardcoded prompt if API fails
+                    console.log('⚠️ Using fallback prompt');
                     const actualPrompt = `📐 Product Design Expert Agent
 
 You are a founding product designer with +15 years of experience. You have built the most profitable digital products and master product design best practices and processes.
@@ -2451,12 +2486,17 @@ COMMAND: send <app> <flow>
 
 Punchline: [1-line strong take]`;
                     
-                    console.log('✅ Setting system prompt directly');
                     document.getElementById('system-prompt').value = actualPrompt;
+                    this.currentModel = 'gpt-4o';
+                    this.currentProvider = 'openai';
+                    document.getElementById('selected-model').textContent = this.currentModel;
                 } catch (error) {
                     console.error('Failed to load system prompt:', error);
                     // Set default system prompt on error
                     document.getElementById('system-prompt').value = 'You are a helpful AI assistant with access to a knowledge base. Use the provided documents to answer questions accurately and comprehensively. If you don\'t know something, say so clearly.';
+                    this.currentModel = 'gpt-4o';
+                    this.currentProvider = 'openai';
+                    document.getElementById('selected-model').textContent = this.currentModel;
                 }
             }
 
