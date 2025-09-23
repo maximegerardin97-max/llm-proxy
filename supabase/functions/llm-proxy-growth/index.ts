@@ -272,8 +272,8 @@ serve(async (req) => {
       let justification = String(aiJSON.justification || '')
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
-      // Keep arrow line on one line
-      justification = justification.replace(/\n\s*👉\s*\n\s*Flows to look at for inspiration/g, '\n👉 Flows to look at for inspiration')
+      // Keep arrow line on one line (robust against multiple blank lines/spaces)
+      justification = justification.replace(/\n+\s*👉\s*\n+\s*Flows to look at for inspiration/g, '\n👉 Flows to look at for inspiration')
       // Ensure blank lines between sections
       justification = justification
         .replace(/(\n⭐️ Visual appeal:[^\n]*\n)([^\n])/g, '$1$2')
@@ -291,6 +291,15 @@ serve(async (req) => {
         .replace(/\n(Recommendation:)/g, '\n\n$1')
         .replace(/\n(👉 Flows to look at for inspiration)/g, '\n\n$1')
         .replace(/\n(Punchline:)/g, '\n\n$1')
+      // Remove any trailing lines that duplicate improvements verbatim
+      try {
+        const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        for (const imp of improvements) {
+          if (!imp) continue
+          const pat = new RegExp(`(^|\\n)\\s*${escape(imp)}\\s*(?=\\n|$)`, 'g')
+          justification = justification.replace(pat, '$1')
+        }
+      } catch (_) {}
       justification = justification.trim().slice(0, 2000)
 
       // Persist rating row
