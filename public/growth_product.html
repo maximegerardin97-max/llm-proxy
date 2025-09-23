@@ -34,10 +34,7 @@
   </style>
   <script>
     const DEFAULT_FN = 'https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy-growth'
-    function getFnUrl(){
-      const v = localStorage.getItem('growth_fn_url') || window.SUPABASE_FUNCTION_URL || DEFAULT_FN
-      return (v || DEFAULT_FN).replace(/\/$/, '')
-    }
+    function getFnUrl(){ return DEFAULT_FN }
     let imageDataUrl = ''
 
     function $(id){ return document.getElementById(id) }
@@ -64,6 +61,7 @@
         const data = await res.json()
         if (!res.ok || !data.success) throw new Error(data.error || 'Save failed')
         $('saveStatus').textContent = 'Saved'
+        await loadSettings()
         setTimeout(()=> $('saveStatus').textContent = '', 1500)
       } catch (e) {
         $('saveStatus').textContent = 'Error saving'
@@ -98,8 +96,6 @@
       const username = $('username').value.trim()
       const email = $('email').value.trim()
       const context = $('context').value.trim()
-      const prompt_override = $('prompt').value.trim()
-      const model_override = $('model').value.trim()
       if (!username || !email){ alert('Username and email are required'); return }
       if (!imageDataUrl){ alert('Upload or paste an image'); return }
       $('rateBtn').disabled = true
@@ -108,7 +104,7 @@
         const res = await fetch(getFnUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, email, context, image: imageDataUrl, prompt_override, model_override })
+          body: JSON.stringify({ username, email, context, image: imageDataUrl })
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Error')
@@ -140,15 +136,7 @@
       } catch (_) {}
     }
 
-    function saveFnUrl(){
-      const v = $('fnurl').value.trim()
-      if (v) localStorage.setItem('growth_fn_url', v)
-      loadSettings(); loadLeaderboard()
-    }
-
     window.addEventListener('DOMContentLoaded', () => {
-      const existing = DEFAULT_FN
-      $('fnurl').value = existing
       loadSettings()
       loadLeaderboard()
       $('file').addEventListener('change', e => handleFile(e.target.files[0]))
@@ -201,14 +189,7 @@
       </div>
 
       <div class="sidebar">
-        <div class="card">
-          <label>Function URL</label>
-          <div class="row">
-            <input id="fnurl" placeholder="https://<PROJECT>.supabase.co/functions/v1/llm-proxy-growth" />
-            <button class="btn" onclick="saveFnUrl()">Use URL</button>
-          </div>
-          <div class="hint">If empty, uses window.SUPABASE_FUNCTION_URL or /functions/v1/llm-proxy-growth</div>
-        </div>
+        
         <div class="card">
           <div class="row">
             <div>
