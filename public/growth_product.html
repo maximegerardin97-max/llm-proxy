@@ -147,8 +147,9 @@
         document.querySelectorAll('.see-designs').forEach((a) => {
           a.addEventListener('click', async (e) => {
             e.preventDefault()
-            const el = e.currentTarget
-            const u = (el && (el as HTMLElement).getAttribute) ? (el as HTMLElement).getAttribute('data-username') : null
+            const el = e.currentTarget as EventTarget
+            let u = null
+            if (el && (el as any).getAttribute) { u = (el as any).getAttribute('data-username') }
             if (!u) return
             await openDesignsModal(u)
           })
@@ -170,9 +171,11 @@
         const res = await fetch(`${getFnUrl()}/user_designs?username=${encodeURIComponent(username)}`, { headers: fnHeaders() })
         const items = await res.json()
         const html = (items||[]).map((it)=>`<div><img src="${it.design_storage_path}" style="width:100%; border:1px solid #e5e7eb; border-radius:8px;" /><div class="muted" style="font-size:12px; margin-top:4px;">${new Date(it.created_at).toLocaleString()} · ${it.grade}/100</div></div>`).join('')
-        document.getElementById('gallery')!.innerHTML = html || '<div class="muted">No images yet.</div>'
+        const g = document.getElementById('gallery')
+        if (g) g.innerHTML = html || '<div class="muted">No images yet.</div>'
       } catch (e) {
-        document.getElementById('gallery')!.innerHTML = '<div class="muted">Failed to load designs.</div>'
+        const g = document.getElementById('gallery')
+        if (g) g.innerHTML = '<div class="muted">Failed to load designs.</div>'
       }
     }
 
