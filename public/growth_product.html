@@ -51,6 +51,25 @@
       } catch (_) {}
     }
 
+    async function saveSettings(){
+      const model = $('model').value.trim()
+      const system_prompt = $('prompt').value
+      $('saveStatus').textContent = 'Saving...'
+      try {
+        const res = await fetch(`${getFnUrl()}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, system_prompt })
+        })
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || 'Save failed')
+        $('saveStatus').textContent = 'Saved'
+        setTimeout(()=> $('saveStatus').textContent = '', 1500)
+      } catch (e) {
+        $('saveStatus').textContent = 'Error saving'
+      }
+    }
+
     function handleFile(file){
       if (!file) return
       const reader = new FileReader()
@@ -128,7 +147,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      const existing = localStorage.getItem('growth_fn_url') || DEFAULT_FN
+      const existing = DEFAULT_FN
       $('fnurl').value = existing
       loadSettings()
       loadLeaderboard()
@@ -193,13 +212,17 @@
         <div class="card">
           <div class="row">
             <div>
-              <label>Model override</label>
+              <label>Model</label>
               <input id="model" placeholder="gpt-4o" />
             </div>
           </div>
           <div style="margin-top:12px;">
-            <label>Prompt override</label>
-            <textarea id="prompt" placeholder="Override system prompt for this run only"></textarea>
+            <label>System Prompt</label>
+            <textarea id="prompt" placeholder="System prompt used by the growth agent"></textarea>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:10px;">
+            <button class="btn" onclick="saveSettings()">Save Settings</button>
+            <span id="saveStatus" class="muted"></span>
           </div>
         </div>
         <div class="card leaderboard">

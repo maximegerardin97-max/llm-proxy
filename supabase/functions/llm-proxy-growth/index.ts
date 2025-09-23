@@ -60,6 +60,30 @@ serve(async (req) => {
       return new Response(JSON.stringify(settings || {}), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    // POST /settings - update prompt/model
+    if (req.method === 'POST' && path.includes('/settings')) {
+      let body: any
+      try { body = await req.json() } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }) }
+      const { system_prompt, provider, model, temperature, max_tokens, enabled } = body || {}
+      const payload: any = {}
+      if (typeof system_prompt === 'string') payload.system_prompt = system_prompt
+      if (typeof provider === 'string') payload.provider = provider
+      if (typeof model === 'string') payload.model = model
+      if (typeof temperature === 'number') payload.temperature = temperature
+      if (typeof max_tokens === 'number') payload.max_tokens = max_tokens
+      if (typeof enabled === 'boolean') payload.enabled = enabled
+      if (Object.keys(payload).length === 0) {
+        return new Response(JSON.stringify({ error: 'No valid fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      payload.updated_at = new Date().toISOString()
+      const { error } = await supabase
+        .from('growth_product_settings')
+        .update(payload)
+        .eq('key', 'growth_default')
+      if (error) return new Response(JSON.stringify({ error: 'Update failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // POST /rate - main entry
     if (req.method === 'POST') {
       let body: any
