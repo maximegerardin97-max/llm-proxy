@@ -112,11 +112,30 @@
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Error')
+        function formatJustification(txt){
+          try {
+            if (!txt) return ''
+            let out = String(txt)
+            // Insert line breaks before emoji markers commonly used
+            out = out
+              .replace(/ \u2B50/g, '<br>⭐')    // star
+              .replace(/ \uD83D\uDFE2/g, '<br>🟢') // green circle
+              .replace(/ \uD83D\uDD34/g, '<br>🔴') // red circle
+              .replace(/ \uD83D\uDC49/g, '<br>👉') // pointing finger
+              .replace(/ \u26A0\uFE0F?/g, '<br>⚠️') // warning
+            // Generic: break before any emoji/non-ASCII symbol if preceded by space and not already on a new line
+            out = out.replace(/ ([\u2600-\u27BF\u{1F300}-\u{1FAFF}])/gu, '<br>$1')
+            // Preserve bold markers **text** -> <b>text</b>
+            out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+            return out
+          } catch (_) { return String(txt) }
+        }
+        const formattedJust = formatJustification(data.justification)
         $('result').innerHTML = `
           <div class="result">
             <h3>Grade: ${data.grade}/100</h3>
             <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
-            <p>${data.justification}</p>
+            <p>${formattedJust}</p>
             <ul>
               <li>${(data.improvements||[])[0]||''}</li>
               <li>${(data.improvements||[])[1]||''}</li>
