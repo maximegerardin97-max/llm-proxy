@@ -56,15 +56,26 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'username required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
       const { data, error } = await supabase
-        .from('growth_design_ratings')
-        .select('created_at, design_storage_path, grade, justification')
+        .from('growth_design_images')
+        .select('created_at, image_data, rating_id')
         .eq('username', username)
         .order('created_at', { ascending: false })
         .limit(24)
       if (error) {
         return new Response(JSON.stringify({ error: 'Failed to load designs' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
-      const items = (data || []).filter(r => typeof r.design_storage_path === 'string' && /^data:image\//i.test(r.design_storage_path))
+      // Enrich with grade when available
+      const items = [] as any[]
+      for (const it of (data || [])) {
+        let grade: number | null = null
+        try {
+          if (it.rating_id) {
+            const { data: r } = await supabase.from('growth_design_ratings').select('grade').eq('id', it.rating_id).single()
+            grade = r?.grade ?? null
+          }
+        } catch (_) {}
+        items.push({ created_at: it.created_at, design_storage_path: it.image_data, grade })
+      }
       return new Response(JSON.stringify(items), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
@@ -260,15 +271,14 @@ serve(async (req) => {
       while (improvements.length < 2) improvements.push('Add a specific, high‑impact improvement.')
       const justification = String(aiJSON.justification || '').slice(0, 1200)
 
-      // Persist rating row (cap inline image size to avoid oversized rows)
+      // Persist rating row
       const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null
       const ipHash = hashIp(ip)
       const latency = Date.now() - start
-      const storedImage = typeof image === 'string' && image.length > 400000 ? image.slice(0, 400000) : image
-      const { error: insertError } = await supabase.from('growth_design_ratings').insert({
+      const { data: ins, error: insertError } = await supabase.from('growth_design_ratings').insert({
         username,
         email,
-        design_storage_path: storedImage,
+        design_storage_path: null,
         input_context: context || null,
         provider,
         model,
@@ -277,10 +287,21 @@ serve(async (req) => {
         improvements: JSON.stringify(improvements),
         latency_ms: latency,
         ip_hash: ipHash
-      })
+      }).select('id').single()
       if (insertError) {
         console.error('Insert rating error:', insertError)
       }
+
+      // Store image separately to avoid oversized rows
+      try {
+        const trimmed = typeof image === 'string' && image.length > 1200000 ? image.slice(0, 1200000) : image
+        await supabase.from('growth_design_images').insert({
+          rating_id: ins?.id || null,
+          username,
+          email,
+          image_data: trimmed
+        })
+      } catch (e) { console.error('Insert image error:', e) }
 
       return new Response(JSON.stringify({
         grade,
