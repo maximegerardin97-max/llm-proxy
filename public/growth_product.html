@@ -35,13 +35,16 @@
   <script>
     const DEFAULT_FN = 'https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy-growth'
     function getFnUrl(){ return DEFAULT_FN }
+    // Some Supabase setups require anon apikey headers even for Functions. Reuse the same anon seen in main page.
+    const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
+    function fnHeaders(){ return { 'Content-Type': 'application/json', 'apikey': ANON, 'Authorization': `Bearer ${ANON}` } }
     let imageDataUrl = ''
 
     function $(id){ return document.getElementById(id) }
 
     async function loadSettings(){
       try {
-        const res = await fetch(`${getFnUrl()}/settings`)
+        const res = await fetch(`${getFnUrl()}/settings`, { headers: fnHeaders() })
         const data = await res.json()
         $('model').value = data?.model || 'gpt-4o'
         $('prompt').value = data?.system_prompt || ''
@@ -55,7 +58,7 @@
       try {
         const res = await fetch(`${getFnUrl()}/settings`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: fnHeaders(),
           body: JSON.stringify({ model, system_prompt })
         })
         const data = await res.json()
@@ -103,7 +106,7 @@
       try {
         const res = await fetch(getFnUrl(), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: fnHeaders(),
           body: JSON.stringify({ username, email, context, image: imageDataUrl })
         })
         const data = await res.json()
@@ -129,7 +132,7 @@
 
     async function loadLeaderboard(){
       try {
-        const res = await fetch(`${getFnUrl()}/leaderboard?limit=50`)
+        const res = await fetch(`${getFnUrl()}/leaderboard?limit=50`, { headers: fnHeaders() })
         const data = await res.json()
         const rows = (data||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${r.username}</td><td>${r.best_grade}</td><td class="muted">${new Date(r.best_at).toLocaleString()}</td></tr>`).join('')
         $('leaderboardBody').innerHTML = rows
