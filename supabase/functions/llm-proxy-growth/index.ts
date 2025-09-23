@@ -269,7 +269,29 @@ serve(async (req) => {
       const grade = Math.max(0, Math.min(100, Math.round(aiJSON.grade)))
       const improvements = (aiJSON.improvements || []).slice(0,2).map(String)
       while (improvements.length < 2) improvements.push('Add a specific, high‑impact improvement.')
-      const justification = String(aiJSON.justification || '').slice(0, 1200)
+      let justification = String(aiJSON.justification || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+      // Keep arrow line on one line
+      justification = justification.replace(/\n\s*👉\s*\n\s*Flows to look at for inspiration/g, '\n👉 Flows to look at for inspiration')
+      // Ensure blank lines between sections
+      justification = justification
+        .replace(/(\n⭐️ Visual appeal:[^\n]*\n)([^\n])/g, '$1$2')
+        .replace(/(\n⭐️ Usability:[^\n]*\n)([^\n])/g, '$1$2')
+        .replace(/(\n⭐️ Navigation:[^\n]*\n)([^\n])/g, '$1$2')
+        .replace(/(\n⭐️ Business impact:[^\n]*\n)([^\n])/g, '$1$2')
+        .replace(/(\n⭐️ OVERALL DESIGN RATING:[^\n]*\n)(?!\n)/g, '$1')
+      // Single blank line before each major section label
+      justification = justification
+        .replace(/\n(⭐️ Visual appeal:)/g, '\n\n$1')
+        .replace(/\n(⭐️ Usability:)/g, '\n\n$1')
+        .replace(/\n(⭐️ Navigation:)/g, '\n\n$1')
+        .replace(/\n(⭐️ Business impact:)/g, '\n\n$1')
+        .replace(/\n(⭐️ Most impactful fixes:)/g, '\n\n$1')
+        .replace(/\n(Recommendation:)/g, '\n\n$1')
+        .replace(/\n(👉 Flows to look at for inspiration)/g, '\n\n$1')
+        .replace(/\n(Punchline:)/g, '\n\n$1')
+      justification = justification.trim().slice(0, 2000)
 
       // Persist rating row
       const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null

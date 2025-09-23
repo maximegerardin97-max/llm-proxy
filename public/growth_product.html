@@ -146,8 +146,7 @@
             <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
             <p>${formattedJust}</p>
             <ul>
-              <li>${(data.improvements||[])[0]||''}</li>
-              <li>${(data.improvements||[])[1]||''}</li>
+              ${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}
             </ul>
           </div>
         `
