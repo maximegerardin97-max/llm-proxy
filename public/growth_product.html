@@ -5,22 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Growth Product – Design Rater</title>
   <style>
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; padding: 24px; background: #0b0c10; color: #eaf0f6; }
-    .container { max-width: 920px; margin: 0 auto; }
-    h1 { font-size: 28px; margin: 0 0 16px; }
-    .card { background: #11131a; border: 1px solid #222636; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    label { display: block; font-size: 13px; color: #aab3c0; margin-bottom: 6px; }
-    input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2b3145; background: #0e1016; color: #eaf0f6; }
-    textarea { min-height: 80px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    button { background: #6c8cff; border: none; color: white; border-radius: 10px; padding: 12px 16px; font-weight: 600; cursor: pointer; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .preview { display: flex; align-items: center; gap: 12px; }
-    .preview img { max-height: 180px; border-radius: 8px; border: 1px solid #2b3145; }
-    .leaderboard table { width: 100%; border-collapse: collapse; }
-    .leaderboard th, .leaderboard td { border-bottom: 1px solid #222636; padding: 10px; text-align: left; }
-    .muted { color: #96a0ad; }
-    .hint { font-size: 12px; color: #96a0ad; }
+    :root { --bg:#f5f7fb; --text:#1a202c; --muted:#64748b; --card:#ffffff; --border:#e9ecef; --accent:#2563eb; }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin:0; background: var(--bg); color: var(--text); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; display:grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items:start; }
+    .chat-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display:flex; flex-direction:column; }
+    .chat-header { background: #ffffff; border-bottom:1px solid var(--border); padding: 14px 16px; display:flex; align-items:center; justify-content:space-between; }
+    .chat-header h2 { margin:0; font-size: 1.1rem; font-weight: 600; display:flex; align-items:center; gap:8px; }
+    .header-actions { display:flex; gap:10px; align-items:center; }
+    .btn { border:1px solid var(--border); background:#f8fafc; color:#111827; padding:8px 12px; border-radius:8px; font-weight:600; cursor:pointer; }
+    .btn.primary { background: var(--accent); color:#fff; border: none; }
+    .btn.link { background:#eef2ff; color:#1e3a8a; border-color:#c7d2fe; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+    .content { padding: 16px; display:grid; gap:12px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    label { display:block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: #ffffff; color: var(--text); }
+    textarea { min-height: 90px; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .preview { display:flex; align-items:center; gap:12px; }
+    .preview img { max-height: 220px; border-radius: 8px; border: 1px solid var(--border); }
+    .sidebar { display:flex; flex-direction:column; gap:16px; }
+    .leaderboard table { width:100%; border-collapse: collapse; }
+    .leaderboard th, .leaderboard td { border-bottom:1px solid var(--border); padding:10px; text-align:left; }
+    .muted { color: var(--muted); }
+    .hint { font-size:12px; color: var(--muted); }
+    .result { background:#f8fafc; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .result h3 { margin:0 0 6px 0; font-size:1rem; }
   </style>
   <script>
     function getFnUrl(){
@@ -73,7 +83,7 @@
       if (!username || !email){ alert('Username and email are required'); return }
       if (!imageDataUrl){ alert('Upload or paste an image'); return }
       $('rateBtn').disabled = true
-      $('result').textContent = 'Rating...'
+      $('result').innerHTML = '<div class="muted">Rating...</div>'
       try {
         const res = await fetch(getFnUrl(), {
           method: 'POST',
@@ -82,10 +92,20 @@
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Error')
-        $('result').innerHTML = `<div class="card"><div><b>Grade:</b> ${data.grade}/100</div><div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div><p>${data.justification}</p><ul><li>${(data.improvements||[])[0]||''}</li><li>${(data.improvements||[])[1]||''}</li></ul></div>`
+        $('result').innerHTML = `
+          <div class="result">
+            <h3>Grade: ${data.grade}/100</h3>
+            <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
+            <p>${data.justification}</p>
+            <ul>
+              <li>${(data.improvements||[])[0]||''}</li>
+              <li>${(data.improvements||[])[1]||''}</li>
+            </ul>
+          </div>
+        `
         await loadLeaderboard()
       } catch (e) {
-        $('result').textContent = 'Error: ' + e.message
+        $('result').innerHTML = `<div class="result" style="border-color:#fecaca;background:#fff1f2;">Error: ${e.message}</div>`
       } finally {
         $('rateBtn').disabled = false
       }
@@ -94,6 +114,9 @@
     async function loadLeaderboard(){
       try {
         const res = await fetch(`${getFnUrl()}/leaderboard?limit=50`)
+        const data = await res.json()
+        const rows = (data||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${r.username}</td><td>${r.best_grade}</td><td class="muted">${new Date(r.best_at).toLocaleString()}</td></tr>`).join('')
+        $('leaderboardBody').innerHTML = rows
       } catch (_) {}
     }
 
@@ -101,11 +124,6 @@
       const v = $('fnurl').value.trim()
       if (v) localStorage.setItem('growth_fn_url', v)
       loadSettings(); loadLeaderboard()
-    }
-        const data = await res.json()
-        const rows = (data||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${r.username}</td><td>${r.best_grade}</td><td class="muted">${new Date(r.best_at).toLocaleString()}</td></tr>`).join('')
-        $('leaderboardBody').innerHTML = rows
-      } catch (_) {}
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -120,68 +138,79 @@
   </head>
   <body>
     <div class="container">
-      <h1>Design Rater (Growth)</h1>
-      <div class="card" style="margin-bottom:12px;">
-        <label>Function URL</label>
-        <div class="row">
-          <input id="fnurl" placeholder="https://<PROJECT>.supabase.co/functions/v1/llm-proxy-growth" />
-          <button onclick="saveFnUrl()">Use URL</button>
-        </div>
-        <div class="hint">If empty, uses window.SUPABASE_FUNCTION_URL or relative /functions/v1/llm-proxy-growth</div>
-      </div>
-      <div class="card">
-        <div class="row">
-          <div>
-            <label>Username</label>
-            <input id="username" placeholder="your handle" />
-          </div>
-          <div>
-            <label>Email</label>
-            <input id="email" placeholder="you@example.com" />
+      <div class="chat-container">
+        <div class="chat-header">
+          <h2><i class="fas fa-bolt"></i> Growth Product</h2>
+          <div class="header-actions">
+            <a class="btn link" href="index.html"><i class="fas fa-arrow-left"></i> Back</a>
+            <button id="rateBtn" class="btn primary" onclick="rate()">Rate my design</button>
           </div>
         </div>
-        <div class="row" style="margin-top:12px;">
-          <div>
-            <label>Upload image (or paste from clipboard)</label>
-            <input id="file" type="file" accept="image/*" />
-            <div class="hint">Tip: Take a screenshot, then Cmd+V here.</div>
+        <div class="content">
+          <div class="card">
+            <div class="row">
+              <div>
+                <label>Username</label>
+                <input id="username" placeholder="your handle" />
+              </div>
+              <div>
+                <label>Email</label>
+                <input id="email" placeholder="you@example.com" />
+              </div>
+            </div>
+            <div class="row" style="margin-top:12px;">
+              <div>
+                <label>Upload image (or paste from clipboard)</label>
+                <input id="file" type="file" accept="image/*" />
+                <div class="hint">Tip: Take a screenshot, then Cmd+V here.</div>
+              </div>
+              <div class="preview">
+                <img id="imgPreview" style="display:none;" />
+              </div>
+            </div>
+            <div style="margin-top:12px;">
+              <label>Context (optional)</label>
+              <textarea id="context" placeholder="Platform, screen purpose, target users, etc."></textarea>
+            </div>
           </div>
-          <div class="preview">
-            <img id="imgPreview" style="display:none;" />
+          <div class="card">
+            <label>Result</label>
+            <div id="result"></div>
           </div>
-        </div>
-        <div style="margin-top:12px;">
-          <label>Context (optional)</label>
-          <textarea id="context" placeholder="Platform, screen purpose, target users, etc."></textarea>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="row">
-          <div>
-            <label>Model override</label>
-            <input id="model" placeholder="gpt-4o" />
-          </div>
-        </div>
-        <div style="margin-top:12px;">
-          <label>Prompt override</label>
-          <textarea id="prompt" placeholder="Override system prompt for this run only"></textarea>
-        </div>
-        <div style="margin-top:12px;">
-          <button id="rateBtn" onclick="rate()">Rate my design</button>
         </div>
       </div>
 
-      <div id="result"></div>
-
-      <div class="card leaderboard">
-        <h2 style="margin:0 0 8px;">Leaderboard</h2>
-        <table>
-          <thead><tr><th>#</th><th>Username</th><th>Best Grade</th><th>When</th></tr></thead>
-          <tbody id="leaderboardBody"></tbody>
-        </table>
+      <div class="sidebar">
+        <div class="card">
+          <label>Function URL</label>
+          <div class="row">
+            <input id="fnurl" placeholder="https://<PROJECT>.supabase.co/functions/v1/llm-proxy-growth" />
+            <button class="btn" onclick="saveFnUrl()">Use URL</button>
+          </div>
+          <div class="hint">If empty, uses window.SUPABASE_FUNCTION_URL or /functions/v1/llm-proxy-growth</div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <div>
+              <label>Model override</label>
+              <input id="model" placeholder="gpt-4o" />
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label>Prompt override</label>
+            <textarea id="prompt" placeholder="Override system prompt for this run only"></textarea>
+          </div>
+        </div>
+        <div class="card leaderboard">
+          <h3 style="margin:0 0 8px;">Leaderboard</h3>
+          <table>
+            <thead><tr><th>#</th><th>Username</th><th>Best Grade</th><th>When</th></tr></thead>
+            <tbody id="leaderboardBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   </body>
 </html>
 
