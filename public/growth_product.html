@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Growth Product – Design Rater</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; padding: 24px; background: #0b0c10; color: #eaf0f6; }
+    .container { max-width: 920px; margin: 0 auto; }
+    h1 { font-size: 28px; margin: 0 0 16px; }
+    .card { background: #11131a; border: 1px solid #222636; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: #aab3c0; margin-bottom: 6px; }
+    input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2b3145; background: #0e1016; color: #eaf0f6; }
+    textarea { min-height: 80px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button { background: #6c8cff; border: none; color: white; border-radius: 10px; padding: 12px 16px; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .preview { display: flex; align-items: center; gap: 12px; }
+    .preview img { max-height: 180px; border-radius: 8px; border: 1px solid #2b3145; }
+    .leaderboard table { width: 100%; border-collapse: collapse; }
+    .leaderboard th, .leaderboard td { border-bottom: 1px solid #222636; padding: 10px; text-align: left; }
+    .muted { color: #96a0ad; }
+    .hint { font-size: 12px; color: #96a0ad; }
+  </style>
+  <script>
+    function getFnUrl(){
+      const v = localStorage.getItem('growth_fn_url') || window.SUPABASE_FUNCTION_URL || ''
+      return (v || '/functions/v1/llm-proxy-growth').replace(/\/$/, '')
+    }
+    let imageDataUrl = ''
+
+    function $(id){ return document.getElementById(id) }
+
+    async function loadSettings(){
+      try {
+        const res = await fetch(`${getFnUrl()}/settings`)
+        const data = await res.json()
+        $('model').value = data?.model || 'gpt-4o'
+        $('prompt').value = data?.system_prompt || ''
+      } catch (_) {}
+    }
+
+    function handleFile(file){
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = e => {
+        imageDataUrl = e.target.result
+        $('imgPreview').src = imageDataUrl
+        $('imgPreview').style.display = 'block'
+      }
+      reader.readAsDataURL(file)
+    }
+
+    function pasteHandler(e){
+      const items = e.clipboardData && e.clipboardData.items
+      if (!items) return
+      for (const item of items){
+        if (item.type.indexOf('image') !== -1){
+          const file = item.getAsFile()
+          handleFile(file)
+          e.preventDefault()
+          return
+        }
+      }
+    }
+
+    async function rate(){
+      const username = $('username').value.trim()
+      const email = $('email').value.trim()
+      const context = $('context').value.trim()
+      const prompt_override = $('prompt').value.trim()
+      const model_override = $('model').value.trim()
+      if (!username || !email){ alert('Username and email are required'); return }
+      if (!imageDataUrl){ alert('Upload or paste an image'); return }
+      $('rateBtn').disabled = true
+      $('result').textContent = 'Rating...'
+      try {
+        const res = await fetch(getFnUrl(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, context, image: imageDataUrl, prompt_override, model_override })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Error')
+        $('result').innerHTML = `<div class="card"><div><b>Grade:</b> ${data.grade}/100</div><div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div><p>${data.justification}</p><ul><li>${(data.improvements||[])[0]||''}</li><li>${(data.improvements||[])[1]||''}</li></ul></div>`
+        await loadLeaderboard()
+      } catch (e) {
+        $('result').textContent = 'Error: ' + e.message
+      } finally {
+        $('rateBtn').disabled = false
+      }
+    }
+
+    async function loadLeaderboard(){
+      try {
+        const res = await fetch(`${getFnUrl()}/leaderboard?limit=50`)
+      } catch (_) {}
+    }
+
+    function saveFnUrl(){
+      const v = $('fnurl').value.trim()
+      if (v) localStorage.setItem('growth_fn_url', v)
+      loadSettings(); loadLeaderboard()
+    }
+        const data = await res.json()
+        const rows = (data||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${r.username}</td><td>${r.best_grade}</td><td class="muted">${new Date(r.best_at).toLocaleString()}</td></tr>`).join('')
+        $('leaderboardBody').innerHTML = rows
+      } catch (_) {}
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const existing = localStorage.getItem('growth_fn_url') || ''
+      if (existing) $('fnurl').value = existing
+      loadSettings()
+      loadLeaderboard()
+      $('file').addEventListener('change', e => handleFile(e.target.files[0]))
+      document.addEventListener('paste', pasteHandler)
+    })
+  </script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Design Rater (Growth)</h1>
+      <div class="card" style="margin-bottom:12px;">
+        <label>Function URL</label>
+        <div class="row">
+          <input id="fnurl" placeholder="https://<PROJECT>.supabase.co/functions/v1/llm-proxy-growth" />
+          <button onclick="saveFnUrl()">Use URL</button>
+        </div>
+        <div class="hint">If empty, uses window.SUPABASE_FUNCTION_URL or relative /functions/v1/llm-proxy-growth</div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div>
+            <label>Username</label>
+            <input id="username" placeholder="your handle" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input id="email" placeholder="you@example.com" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <div>
+            <label>Upload image (or paste from clipboard)</label>
+            <input id="file" type="file" accept="image/*" />
+            <div class="hint">Tip: Take a screenshot, then Cmd+V here.</div>
+          </div>
+          <div class="preview">
+            <img id="imgPreview" style="display:none;" />
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label>Context (optional)</label>
+          <textarea id="context" placeholder="Platform, screen purpose, target users, etc."></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <label>Model override</label>
+            <input id="model" placeholder="gpt-4o" />
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label>Prompt override</label>
+          <textarea id="prompt" placeholder="Override system prompt for this run only"></textarea>
+        </div>
+        <div style="margin-top:12px;">
+          <button id="rateBtn" onclick="rate()">Rate my design</button>
+        </div>
+      </div>
+
+      <div id="result"></div>
+
+      <div class="card leaderboard">
+        <h2 style="margin:0 0 8px;">Leaderboard</h2>
+        <table>
+          <thead><tr><th>#</th><th>Username</th><th>Best Grade</th><th>When</th></tr></thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>
+
+
