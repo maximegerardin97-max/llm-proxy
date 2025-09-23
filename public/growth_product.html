@@ -33,9 +33,10 @@
     .result h3 { margin:0 0 6px 0; font-size:1rem; }
   </style>
   <script>
+    const DEFAULT_FN = 'https://iiolvvdnzrfcffudwocp.supabase.co/functions/v1/llm-proxy-growth'
     function getFnUrl(){
-      const v = localStorage.getItem('growth_fn_url') || window.SUPABASE_FUNCTION_URL || ''
-      return (v || '/functions/v1/llm-proxy-growth').replace(/\/$/, '')
+      const v = localStorage.getItem('growth_fn_url') || window.SUPABASE_FUNCTION_URL || DEFAULT_FN
+      return (v || DEFAULT_FN).replace(/\/$/, '')
     }
     let imageDataUrl = ''
 
@@ -127,8 +128,8 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      const existing = localStorage.getItem('growth_fn_url') || ''
-      if (existing) $('fnurl').value = existing
+      const existing = localStorage.getItem('growth_fn_url') || DEFAULT_FN
+      $('fnurl').value = existing
       loadSettings()
       loadLeaderboard()
       $('file').addEventListener('change', e => handleFile(e.target.files[0]))
