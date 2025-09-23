@@ -70,17 +70,33 @@ serve(async (req) => {
         try { body = raw ? JSON.parse(raw) : {} } catch { systemPromptFromRaw = raw }
       } catch (_) { body = {} }
       const { system_prompt, provider, model, temperature, max_tokens, enabled } = body || {}
+      // Load current to allow partial updates
+      const { data: curr } = await supabase
+        .from('growth_product_settings')
+        .select('system_prompt, provider, model, temperature, max_tokens, enabled')
+        .eq('key', 'growth_default')
+        .single()
+
       const payload: any = { key: 'growth_default' }
-      if (typeof system_prompt === 'string') payload.system_prompt = system_prompt
-      else if (typeof systemPromptFromRaw === 'string' && systemPromptFromRaw.trim().length > 0) payload.system_prompt = systemPromptFromRaw
+      const newPrompt = (typeof system_prompt === 'string') ? system_prompt : (typeof systemPromptFromRaw === 'string' && systemPromptFromRaw.trim().length > 0 ? systemPromptFromRaw : undefined)
+      if (typeof newPrompt === 'string') payload.system_prompt = newPrompt
+      else if (curr?.system_prompt) payload.system_prompt = curr.system_prompt
+
       if (typeof provider === 'string') payload.provider = provider
+      else if (curr?.provider) payload.provider = curr.provider
+
       if (typeof model === 'string') payload.model = model
+      else if (curr?.model) payload.model = curr.model
+
       if (typeof temperature === 'number') payload.temperature = temperature
+      else if (typeof curr?.temperature === 'number') payload.temperature = curr.temperature
+
       if (typeof max_tokens === 'number') payload.max_tokens = max_tokens
+      else if (typeof curr?.max_tokens === 'number') payload.max_tokens = curr.max_tokens
+
       if (typeof enabled === 'boolean') payload.enabled = enabled
-      if (!payload.system_prompt && !payload.model && !payload.provider && typeof temperature !== 'number' && typeof max_tokens !== 'number' && typeof enabled !== 'boolean') {
-        return new Response(JSON.stringify({ error: 'No fields provided' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      }
+      else if (typeof curr?.enabled === 'boolean') payload.enabled = curr.enabled
+
       payload.updated_at = new Date().toISOString()
       const { error } = await supabase
         .from('growth_product_settings')
