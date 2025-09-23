@@ -219,7 +219,7 @@ serve(async (req) => {
         systemPrompt += `\n\nHandbook reasoning (hidden):\n${handbookBullets}`
       }
       if (inspiration) { systemPrompt += inspiration }
-      systemPrompt += `\n\nHard rules (strict):\n- Output JSON only with keys: grade, justification, improvements.\n- grade is an integer 0–100.\n- justification must be concise and include ALL of the following inline: overall rating and four category ratings (Visual appeal, Usability, Navigation, Business impact), each as 0–100; one exact flow name from flows_index (no invented names); a bold, tweet-style punchline.\n- Use roasty, lowercase tone and emojis as spice in justification; do not greet or explain.\n- Do NOT include any line starting with 'COMMAND:'.\n- improvements must be an array with exactly 2 specific, high‑impact items.`
+      systemPrompt += `\n\nHard rules (strict):\n- Output JSON only with keys: grade, justification, improvements.\n- grade is an integer 0–100.\n- justification must be concise and include ALL of the following inline: overall rating and four category ratings (Visual appeal, Usability, Navigation, Business impact), each as 0–100; one exact flow name from flows_index (no invented names); a bold, tweet-style punchline.\n- Use roasty, lowercase tone and emojis as spice in justification; do not greet or explain.\n- Format justification with line breaks: each line starting with an emoji should be on its own line.\n- Do NOT include any line starting with 'COMMAND:'.\n- improvements must be an array with exactly 2 specific, high‑impact items.`
 
       // Convert data URL image for OpenAI
       let imagePart: any = null
