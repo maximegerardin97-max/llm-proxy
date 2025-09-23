@@ -100,18 +100,24 @@
       const username = $('username').value.trim()
       const email = $('email').value.trim()
       const context = $('context').value.trim()
+      const modelInput = $('model').value.trim()
+      const promptInput = $('prompt').value
       if (!username || !email){ alert('Username and email are required'); return }
       if (!imageDataUrl){ alert('Upload or paste an image'); return }
       $('rateBtn').disabled = true
       $('result').innerHTML = '<div class="muted">Rating...</div>'
       try {
+        // Enforce JSON contract regardless of saved settings
+        const JSON_ENFORCER = '\n\n**JSON response contract (do not violate)**\n- Output JSON only with keys: grade, justification, improvements.\n- grade: integer 0–100.\n- justification: a single string containing the full multiline block, with newlines preserved.\n- improvements: array of exactly 2 short, specific strings.\n- No extra keys, no markdown fences, no preamble.'
+        const prompt_override = (promptInput || '') + JSON_ENFORCER
+        const model_override = modelInput || undefined
         const res = await fetch(getFnUrl(), {
           method: 'POST',
           headers: fnHeaders(),
-          body: JSON.stringify({ username, email, context, image: imageDataUrl })
+          body: JSON.stringify({ username, email, context, image: imageDataUrl, prompt_override, model_override })
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Error')
+        if (!res.ok) throw new Error(data.details || data.error || 'Error')
         function formatJustification(txt){
           try {
             if (!txt) return ''
