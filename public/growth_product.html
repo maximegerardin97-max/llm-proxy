@@ -135,9 +135,44 @@
       try {
         const res = await fetch(`${getFnUrl()}/leaderboard?limit=50`, { headers: fnHeaders() })
         const data = await res.json()
-        const rows = (data||[]).map((r,i)=>`<tr><td>${i+1}</td><td>${r.username}</td><td>${r.best_grade}</td><td class="muted">${new Date(r.best_at).toLocaleString()}</td></tr>`).join('')
+        const rows = (data||[]).map((r,i)=>
+          `<tr>
+            <td>${i+1}</td>
+            <td>${r.username} · <a href="#" data-username="${r.username}" class="see-designs">See their designs</a></td>
+            <td>${r.best_grade}</td>
+            <td class="muted">${new Date(r.best_at).toLocaleString()}</td>
+          </tr>`
+        ).join('')
         $('leaderboardBody').innerHTML = rows
+        document.querySelectorAll('.see-designs').forEach(a => {
+          a.addEventListener('click', async (e)=>{
+            e.preventDefault()
+            const u = (e.currentTarget as HTMLAnchorElement).getAttribute('data-username')
+            if (!u) return
+            await openDesignsModal(u)
+          })
+        })
       } catch (_) {}
+    }
+
+    async function openDesignsModal(username){
+      const modal = document.createElement('div')
+      modal.className = 'modal'
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width:900px;">
+          <div class="modal-header"><h2>Designs by ${username}</h2><button class="close-btn" id="close-modal">×</button></div>
+          <div id="gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; max-height:70vh; overflow:auto;"></div>
+        </div>`
+      document.body.appendChild(modal)
+      document.getElementById('close-modal')?.addEventListener('click', ()=> modal.remove())
+      try {
+        const res = await fetch(`${getFnUrl()}/user_designs?username=${encodeURIComponent(username)}`, { headers: fnHeaders() })
+        const items = await res.json()
+        const html = (items||[]).map((it)=>`<div><img src="${it.design_storage_path}" style="width:100%; border:1px solid #e5e7eb; border-radius:8px;" /><div class="muted" style="font-size:12px; margin-top:4px;">${new Date(it.created_at).toLocaleString()} · ${it.grade}/100</div></div>`).join('')
+        document.getElementById('gallery')!.innerHTML = html || '<div class="muted">No images yet.</div>'
+      } catch (e) {
+        document.getElementById('gallery')!.innerHTML = '<div class="muted">Failed to load designs.</div>'
+      }
     }
 
     window.addEventListener('DOMContentLoaded', () => {

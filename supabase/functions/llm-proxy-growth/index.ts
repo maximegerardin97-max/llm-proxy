@@ -49,6 +49,24 @@ serve(async (req) => {
       }
       return new Response(JSON.stringify(data || []), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
+    // GET /user_designs?username=foo — list recent inline images for a username
+    if (req.method === 'GET' && path.includes('/user_designs')) {
+      const username = url.searchParams.get('username') || ''
+      if (!username) {
+        return new Response(JSON.stringify({ error: 'username required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const { data, error } = await supabase
+        .from('growth_design_ratings')
+        .select('created_at, design_storage_path, grade, justification')
+        .eq('username', username)
+        .order('created_at', { ascending: false })
+        .limit(24)
+      if (error) {
+        return new Response(JSON.stringify({ error: 'Failed to load designs' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const items = (data || []).filter(r => typeof r.design_storage_path === 'string' && /^data:image\//i.test(r.design_storage_path))
+      return new Response(JSON.stringify(items), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // GET /settings
     if (req.method === 'GET' && path.includes('/settings')) {
@@ -242,17 +260,6 @@ serve(async (req) => {
       while (improvements.length < 2) improvements.push('Add a specific, high‑impact improvement.')
       const justification = String(aiJSON.justification || '').slice(0, 1200)
 
-      // Store image in Storage (flows bucket under growth_uploads/)
-      let storagePath = ''
-      try {
-        const now = new Date()
-        const key = `growth_uploads/${now.getUTCFullYear()}/${(now.getUTCMonth()+1).toString().padStart(2,'0')}/${crypto.randomUUID()}.jpg`
-        const base64 = String(image).includes(',') ? String(image).split(',')[1] : String(image)
-        const bin = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
-        const { error: upErr } = await supabase.storage.from('flows').upload(key, bin, { contentType: 'image/jpeg', upsert: false })
-        if (!upErr) storagePath = key
-      } catch (e) { console.error('Upload error', e) }
-
       // Persist rating row
       const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null
       const ipHash = hashIp(ip)
@@ -260,7 +267,7 @@ serve(async (req) => {
       await supabase.from('growth_design_ratings').insert({
         username,
         email,
-        design_storage_path: storagePath || 'inline',
+        design_storage_path: image,
         input_context: context || null,
         provider,
         model,
