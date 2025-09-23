@@ -56,10 +56,11 @@
       const system_prompt = $('prompt').value
       $('saveStatus').textContent = 'Saving...'
       try {
+        const payload = { model, system_prompt }
         const res = await fetch(`${getFnUrl()}/settings`, {
           method: 'POST',
           headers: fnHeaders(),
-          body: JSON.stringify({ model, system_prompt })
+          body: JSON.stringify(payload)
         })
         const data = await res.json()
         if (!res.ok || !data.success) throw new Error(data.error || 'Save failed')

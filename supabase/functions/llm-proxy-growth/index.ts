@@ -62,16 +62,25 @@ serve(async (req) => {
 
     // POST /settings - update prompt/model
     if (req.method === 'POST' && path.includes('/settings')) {
-      let body: any
-      try { body = await req.json() } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }) }
+      // Accept JSON or raw text (raw text treated as full system_prompt)
+      let body: any = null
+      let systemPromptFromRaw: string | null = null
+      try {
+        const raw = await req.text()
+        try { body = raw ? JSON.parse(raw) : {} } catch { systemPromptFromRaw = raw }
+      } catch (_) { body = {} }
       const { system_prompt, provider, model, temperature, max_tokens, enabled } = body || {}
       const payload: any = { key: 'growth_default' }
       if (typeof system_prompt === 'string') payload.system_prompt = system_prompt
+      else if (typeof systemPromptFromRaw === 'string' && systemPromptFromRaw.trim().length > 0) payload.system_prompt = systemPromptFromRaw
       if (typeof provider === 'string') payload.provider = provider
       if (typeof model === 'string') payload.model = model
       if (typeof temperature === 'number') payload.temperature = temperature
       if (typeof max_tokens === 'number') payload.max_tokens = max_tokens
       if (typeof enabled === 'boolean') payload.enabled = enabled
+      if (!payload.system_prompt && !payload.model && !payload.provider && typeof temperature !== 'number' && typeof max_tokens !== 'number' && typeof enabled !== 'boolean') {
+        return new Response(JSON.stringify({ error: 'No fields provided' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
       payload.updated_at = new Date().toISOString()
       const { error } = await supabase
         .from('growth_product_settings')
