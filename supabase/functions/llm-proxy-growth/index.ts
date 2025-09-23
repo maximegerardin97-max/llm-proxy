@@ -260,14 +260,15 @@ serve(async (req) => {
       while (improvements.length < 2) improvements.push('Add a specific, high‑impact improvement.')
       const justification = String(aiJSON.justification || '').slice(0, 1200)
 
-      // Persist rating row
+      // Persist rating row (cap inline image size to avoid oversized rows)
       const ip = req.headers.get('x-forwarded-for') || req.headers.get('cf-connecting-ip') || null
       const ipHash = hashIp(ip)
       const latency = Date.now() - start
-      await supabase.from('growth_design_ratings').insert({
+      const storedImage = typeof image === 'string' && image.length > 400000 ? image.slice(0, 400000) : image
+      const { error: insertError } = await supabase.from('growth_design_ratings').insert({
         username,
         email,
-        design_storage_path: image,
+        design_storage_path: storedImage,
         input_context: context || null,
         provider,
         model,
@@ -277,6 +278,9 @@ serve(async (req) => {
         latency_ms: latency,
         ip_hash: ipHash
       })
+      if (insertError) {
+        console.error('Insert rating error:', insertError)
+      }
 
       return new Response(JSON.stringify({
         grade,
