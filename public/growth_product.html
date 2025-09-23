@@ -116,15 +116,24 @@
           try {
             if (!txt) return ''
             let out = String(txt)
-            // Insert line breaks before emoji markers commonly used
+            // Normalize whitespace
+            out = out.replace(/\s+/g,' ').trim()
+            // Hard breaks before emoji markers regardless of spacing
             out = out
-              .replace(/ \u2B50/g, '<br>⭐')    // star
-              .replace(/ \uD83D\uDFE2/g, '<br>🟢') // green circle
-              .replace(/ \uD83D\uDD34/g, '<br>🔴') // red circle
-              .replace(/ \uD83D\uDC49/g, '<br>👉') // pointing finger
-              .replace(/ \u26A0\uFE0F?/g, '<br>⚠️') // warning
-            // Generic: break before any emoji/non-ASCII symbol if preceded by space and not already on a new line
-            out = out.replace(/ ([\u2600-\u27BF\u{1F300}-\u{1FAFF}])/gu, '<br>$1')
+              .replace(/(?!^)⭐/g, '<br>⭐')
+              .replace(/(?!^)✨/g, '<br>✨')
+              .replace(/(?!^)✅/g, '<br>✅')
+              .replace(/(?!^)🔴/g, '<br>🔴')
+              .replace(/(?!^)🟢/g, '<br>🟢')
+              .replace(/(?!^)👉/g, '<br>👉')
+            // Add breaks before key labels if they appear inline
+            out = out
+              .replace(/(?!^)Product:/g, '<br>Product:')
+              .replace(/(?!^)Recommendation:/g, '<br>Recommendation:')
+              .replace(/(?!^)Punchline:/g, '<br>Punchline:')
+              .replace(/(?!^)Flows to look at for inspiration/g, '<br>Flows to look at for inspiration')
+            // Collapse multiple breaks
+            out = out.replace(/(<br>\s*){2,}/g, '<br>')
             // Preserve bold markers **text** -> <b>text</b>
             out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
             return out
