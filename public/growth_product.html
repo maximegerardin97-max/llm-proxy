@@ -118,10 +118,24 @@
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.details || data.error || 'Error')
-        function formatJustification(txt){
+        function formatJustification(txt, improvements){
           try {
             if (!txt) return ''
             let out = String(txt)
+              .replace(/\r\n/g,'\n')
+              .replace(/\r/g,'\n')
+            // Keep arrow line with flows on same line
+            out = out.replace(/\n+\s*👉\s*\n+\s*Flows to look at for inspiration/g, '\n👉 Flows to look at for inspiration')
+            // Remove duplicate lines that repeat the two improvements
+            try {
+              const ims = (improvements||[]).map(function(s){ return String(s||'').trim().toLowerCase() })
+              if (ims.length){
+                out = out.split('\n').filter(function(line){
+                  var t = String(line||'').trim().toLowerCase()
+                  return ims.indexOf(t) === -1
+                }).join('\n')
+              }
+            } catch(_){}
             // Normalize whitespace
             out = out.replace(/\s+/g,' ').trim()
             // Hard breaks before emoji markers regardless of spacing
@@ -145,7 +159,7 @@
             return out
           } catch (_) { return String(txt) }
         }
-        const formattedJust = formatJustification(data.justification)
+        const formattedJust = formatJustification(data.justification, data.improvements)
         $('result').innerHTML = `
           <div class="result">
             <h3>Grade: ${data.grade}/100</h3>
