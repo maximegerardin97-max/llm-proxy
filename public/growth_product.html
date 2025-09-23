@@ -144,10 +144,11 @@
           </tr>`
         ).join('')
         $('leaderboardBody').innerHTML = rows
-        document.querySelectorAll('.see-designs').forEach(a => {
-          a.addEventListener('click', async (e)=>{
+        document.querySelectorAll('.see-designs').forEach((a) => {
+          a.addEventListener('click', async (e) => {
             e.preventDefault()
-            const u = (e.currentTarget as HTMLAnchorElement).getAttribute('data-username')
+            const el = e.currentTarget
+            const u = (el && (el as HTMLElement).getAttribute) ? (el as HTMLElement).getAttribute('data-username') : null
             if (!u) return
             await openDesignsModal(u)
           })
