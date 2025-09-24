@@ -124,8 +124,8 @@
             let out = String(txt)
               .replace(/\r\n/g,'\n')
               .replace(/\r/g,'\n')
-            // Keep arrow line with flows on same line
-            out = out.replace(/\n+\s*👉\s*\n+\s*Flows to look at for inspiration/g, '\n👉 Flows to look at for inspiration')
+            // Keep arrow line with flows on same line (tolerant to spacing/case/extra text)
+            out = out.replace(/\n+\s*👉\s*\n+\s*((?:flows?)\s*to\s*look\s*at\s*for\s*inspiration[^\n]*)/i, '\n👉 $1')
             // Remove duplicate lines that repeat the two improvements
             try {
               function norm(s){
@@ -161,8 +161,8 @@
               .replace(/(?!^)Flows to look at for inspiration/g, '<br>Flows to look at for inspiration')
             // Collapse multiple breaks
             out = out.replace(/(<br>\s*){2,}/g, '<br>')
-            // Preserve bold markers **text** -> <b>text</b>
-            out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+            // Remove markdown bold markers
+            out = out.replace(/\*\*(.+?)\*\*/g, '$1')
             return out
           } catch (_) { return String(txt) }
         }
