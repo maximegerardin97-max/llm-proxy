@@ -49,6 +49,30 @@ serve(async (req) => {
       }
       return new Response(JSON.stringify(data || []), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
+    // GET /rating/{id} — fetch rating details by ID
+    if (req.method === 'GET' && path.includes('/rating/')) {
+      const ratingId = path.split('/rating/')[1]
+      if (!ratingId) {
+        return new Response(JSON.stringify({ error: 'rating ID required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const { data, error } = await supabase
+        .from('growth_design_ratings')
+        .select('grade, justification, improvements, model, latency_ms, created_at')
+        .eq('id', ratingId)
+        .single()
+      if (error || !data) {
+        return new Response(JSON.stringify({ error: 'Rating not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({
+        grade: data.grade,
+        justification: data.justification,
+        improvements: data.improvements ? JSON.parse(data.improvements) : [],
+        model: data.model,
+        latency_ms: data.latency_ms,
+        created_at: data.created_at
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // GET /user_designs?username=foo — list recent inline images for a username
     if (req.method === 'GET' && path.includes('/user_designs')) {
       const username = url.searchParams.get('username') || ''

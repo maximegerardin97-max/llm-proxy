@@ -232,17 +232,42 @@
         })
         const data = await res.json()
         if (!res.ok || !data.success) throw new Error(data.error || 'Claim failed')
-        // Re-run leaderboard and prompt the user to re-rate to view the now-claimed review content
+        
+        // After successful claim, re-fetch the rating to show the full analysis
+        await fetchAndShowFullAnalysis()
         await loadLeaderboard()
-        // Simple UX: notify and ask to re-run to reveal (or we could store last response and re-render if we had kept it)
-        const info = document.createElement('div')
-        info.className = 'muted'
-        info.style.marginTop = '8px'
-        info.textContent = 'Saved. Run another rating or refresh to reveal future analyses automatically.'
-        const resBox = $('result')
-        if (resBox) resBox.appendChild(info)
       } catch (e) {
         alert(e.message)
+      }
+    }
+
+    async function fetchAndShowFullAnalysis(){
+      if (!lastRating.rating_id) return
+      try {
+        // Fetch the rating details to get the full analysis
+        const res = await fetch(`${getFnUrl()}/rating/${lastRating.rating_id}`, { headers: fnHeaders() })
+        if (!res.ok) throw new Error('Failed to fetch rating')
+        const data = await res.json()
+        
+        // Show the full analysis
+        const formattedJust = formatJustification(data.justification, data.improvements)
+        const hasFixesInJust = /Most impactful fixes:/i.test(String(data.justification||'')) || /TOTAL DESIGN POINTS/i.test(String(data.justification||''))
+        $('result').innerHTML = `
+          <div class="result">
+            <h3>Grade: ${data.grade}/1000</h3>
+            <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
+            <p>${formattedJust}</p>
+            ${hasFixesInJust ? '' : `<ul>${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}</ul>`}
+          </div>
+        `
+      } catch (e) {
+        // Fallback: show a message that the analysis is now available
+        $('result').innerHTML = `
+          <div class="result">
+            <h3>Analysis claimed successfully!</h3>
+            <div class="muted">Your rating has been saved. The full analysis is now available in your profile.</div>
+          </div>
+        `
       }
     }
 
