@@ -128,6 +128,8 @@
             out = out.replace(/\n+\s*👉\s*\n+\s*((?:flows?)\s*to\s*look\s*at\s*for\s*inspiration[^\n]*)/i, '\n👉 $1')
             // Put TOTAL DESIGN POINTS on its own line and add a blank line after
             out = out.replace(/\s*(TOTAL DESIGN POINTS:\s*\d+\s*\(out of 1000\))/i, '<br>$1<br>')
+            // If TOTAL follows Platform on the same line, break before TOTAL
+            out = out.replace(/(Platform:[^\n<]+?)\s+(TOTAL DESIGN POINTS:\s*\d+\s*\(out of 1000\))/i, '$1<br>$2')
             // Isolate quoted punchline on its own line
             out = out.replace(/("|“)([^"”]+)("|”)/g, '<br>$1$2$3<br>')
             // Ensure section headers are on their own line and emoji content on next line
@@ -135,8 +137,8 @@
             sections.forEach(function(name){
               var esc = name.replace(/([.*+?^${}()|\[\]\\])/g,'\\$1')
               // ensure header has its own line even without emoji following
-              var re1 = new RegExp('(?:^|\n)\s*'+esc+'\b','gi')
-              out = out.replace(re1, function(m){ return '<br><br>'+name })
+              var re1 = new RegExp('(?:^|\n| )'+esc+'\b','gi')
+              out = out.replace(re1, function(){ return '<br><br>'+name })
               // and if emoji follows immediately after header text, put emoji on next line
               var re2 = new RegExp(name.replace(/([.*+?^${}()|\[\]\\])/g,'\\$1')+'\s+(?=(👍|👎))','gi')
               out = out.replace(re2, name+' <br>')
@@ -158,8 +160,8 @@
                 }).join('\n')
               }
             } catch(_){}
-            // Normalize whitespace
-            out = out.replace(/\s+/g,' ').trim()
+            // Normalize spaces but preserve newlines
+            out = out.replace(/[\t ]+/g,' ')
             // Hard breaks before emoji markers regardless of spacing
             out = out
               .replace(/(?!^)⭐/g, '<br>⭐')
@@ -180,6 +182,8 @@
             out = out.replace(/(<br>\s*){2,}/g, '<br>')
             // Remove markdown bold markers
             out = out.replace(/\*\*(.+?)\*\*/g, '$1')
+            // Convert remaining newlines to <br>
+            out = out.replace(/\n/g,'<br>')
             return out
           } catch (_) { return String(txt) }
         }
