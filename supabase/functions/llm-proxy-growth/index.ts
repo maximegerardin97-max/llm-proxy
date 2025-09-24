@@ -63,10 +63,22 @@ serve(async (req) => {
       if (error || !data) {
         return new Response(JSON.stringify({ error: 'Rating not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
+      let improvements: any[] = []
+      try {
+        const raw = (data as any).improvements
+        if (Array.isArray(raw)) improvements = raw
+        else if (typeof raw === 'string') {
+          const parsed = JSON.parse(raw)
+          improvements = Array.isArray(parsed) ? parsed : []
+        } else if (raw && typeof raw === 'object') {
+          // some drivers return jsonb as object
+          improvements = raw as any[]
+        }
+      } catch (_) { improvements = [] }
       return new Response(JSON.stringify({
         grade: data.grade,
         justification: data.justification,
-        improvements: data.improvements ? JSON.parse(data.improvements) : [],
+        improvements,
         model: data.model,
         latency_ms: data.latency_ms,
         created_at: data.created_at
