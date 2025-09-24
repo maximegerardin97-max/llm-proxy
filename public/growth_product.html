@@ -128,10 +128,17 @@
             out = out.replace(/\n+\s*👉\s*\n+\s*Flows to look at for inspiration/g, '\n👉 Flows to look at for inspiration')
             // Remove duplicate lines that repeat the two improvements
             try {
-              const ims = (improvements||[]).map(function(s){ return String(s||'').trim().toLowerCase() })
+              function norm(s){
+                return String(s||'')
+                  .toLowerCase()
+                  .replace(/^[-*•\s]+/,'')
+                  .replace(/[.!\s]+$/,'')
+                  .trim()
+              }
+              const ims = (improvements||[]).map(function(s){ return norm(s) })
               if (ims.length){
                 out = out.split('\n').filter(function(line){
-                  var t = String(line||'').trim().toLowerCase()
+                  var t = norm(line)
                   return ims.indexOf(t) === -1
                 }).join('\n')
               }
@@ -160,14 +167,13 @@
           } catch (_) { return String(txt) }
         }
         const formattedJust = formatJustification(data.justification, data.improvements)
+        const hasFixesInJust = /Most impactful fixes:/i.test(String(data.justification||''))
         $('result').innerHTML = `
           <div class="result">
             <h3>Grade: ${data.grade}/100</h3>
             <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
             <p>${formattedJust}</p>
-            <ul>
-              ${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}
-            </ul>
+            ${hasFixesInJust ? '' : `<ul>${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}</ul>`}
           </div>
         `
         await loadLeaderboard()
