@@ -40,6 +40,7 @@
     function fnHeaders(){ return { 'Content-Type': 'application/json', 'apikey': ANON, 'Authorization': `Bearer ${ANON}` } }
     let imageDataUrl = ''
     let lastRating = { rating_id: null, request_id: null }
+    let lastAnalysis = null
 
     function $(id){ return document.getElementById(id) }
 
@@ -192,6 +193,7 @@
         if (!res.ok) throw new Error(data.details || data.error || 'Error')
         lastRating.rating_id = data.rating_id || null
         lastRating.request_id = data.request_id || null
+        lastAnalysis = data
         // use global formatJustification
         const isUnclaimed = !data.masked_email
         const formattedJust = isUnclaimed ? '' : formatJustification(data.justification, data.improvements)
@@ -235,9 +237,22 @@
         })
         const data = await res.json()
         if (!res.ok || !data.success) throw new Error(data.error || 'Claim failed')
-        
-        // After successful claim, re-fetch the rating to show the full analysis
-        await fetchAndShowFullAnalysis()
+        // After successful claim, reveal using the already-fetched analysis if available
+        if (lastAnalysis) {
+          const formattedJust = formatJustification(lastAnalysis.justification, lastAnalysis.improvements)
+          const hasFixesInJust = /Most impactful fixes:/i.test(String(lastAnalysis.justification||'')) || /TOTAL DESIGN POINTS/i.test(String(lastAnalysis.justification||''))
+          $('result').innerHTML = `
+            <div class="result">
+              <h3>Grade: ${lastAnalysis.grade}/1000</h3>
+              <div class="muted">Model: ${lastAnalysis.model} • ${lastAnalysis.latency_ms}ms</div>
+              <p>${formattedJust}</p>
+              ${hasFixesInJust ? '' : `<ul>${((lastAnalysis.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}</ul>`}
+            </div>
+          `
+        } else {
+          // Fallback: attempt to fetch
+          await fetchAndShowFullAnalysis()
+        }
         await loadLeaderboard()
       } catch (e) {
         alert(e.message)
