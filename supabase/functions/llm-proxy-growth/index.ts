@@ -265,8 +265,8 @@ serve(async (req) => {
       if (!aiJSON || typeof aiJSON.grade !== 'number' || !Array.isArray(aiJSON.improvements)) {
         return new Response(JSON.stringify({ error: 'Invalid model output' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
-      // Clamp and coerce
-      const grade = Math.max(0, Math.min(100, Math.round(aiJSON.grade)))
+      // Clamp and coerce (0–1000 scale)
+      const grade = Math.max(0, Math.min(1000, Math.round(aiJSON.grade)))
       const improvements = (aiJSON.improvements || []).slice(0,2).map(String)
       while (improvements.length < 2) improvements.push('Add a specific, high‑impact improvement.')
       const justification = String(aiJSON.justification || '').slice(0, 2000)
