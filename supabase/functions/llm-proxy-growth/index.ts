@@ -40,10 +40,19 @@ serve(async (req) => {
   const path = url.pathname
 
   try {
-    // GET /leaderboard -> call RPC
+    // GET /leaderboard -> call RPC (v2 if available)
     if (req.method === 'GET' && path.includes('/leaderboard')) {
       const limit = parseInt(url.searchParams.get('limit') || '50', 10)
-      const { data, error } = await supabase.rpc('get_growth_leaderboard', { limit_rows: isNaN(limit) ? 50 : limit })
+      let data: any = null
+      let error: any = null
+      try {
+        const r2 = await supabase.rpc('get_growth_leaderboard_v2', { limit_rows: isNaN(limit) ? 50 : limit })
+        if (r2.error) throw r2.error
+        data = r2.data
+      } catch (_) {
+        const r1 = await supabase.rpc('get_growth_leaderboard', { limit_rows: isNaN(limit) ? 50 : limit })
+        data = r1.data; error = r1.error
+      }
       if (error) {
         return new Response(JSON.stringify({ error: 'Failed to load leaderboard' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
