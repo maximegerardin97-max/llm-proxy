@@ -170,7 +170,7 @@
         const hasFixesInJust = /Most impactful fixes:/i.test(String(data.justification||''))
         $('result').innerHTML = `
           <div class="result">
-            <h3>Grade: ${data.grade}/100</h3>
+            <h3>Grade: ${data.grade}/1000</h3>
             <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
             <p>${formattedJust}</p>
             ${hasFixesInJust ? '' : `<ul>${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}</ul>`}
