@@ -39,6 +39,7 @@
     const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpb2x2dmRuenJmY2ZmdWR3b2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MjE4MDAsImV4cCI6MjA3MzA5NzgwMH0.2-e8Scn26fqsR11h-g4avH8MWybwLTtcf3fCN9qAgVw'
     function fnHeaders(){ return { 'Content-Type': 'application/json', 'apikey': ANON, 'Authorization': `Bearer ${ANON}` } }
     let imageDataUrl = ''
+    let lastRating = { rating_id: null, request_id: null }
 
     function $(id){ return document.getElementById(id) }
 
@@ -102,7 +103,7 @@
       const context = $('context').value.trim()
       const modelInput = $('model').value.trim()
       const promptInput = $('prompt').value
-      if (!username || !email){ alert('Username and email are required'); return }
+      // username/email optional for pre-claim
       if (!imageDataUrl){ alert('Upload or paste an image'); return }
       $('rateBtn').disabled = true
       $('result').innerHTML = '<div class="muted">Rating...</div>'
@@ -114,10 +115,12 @@
         const res = await fetch(getFnUrl(), {
           method: 'POST',
           headers: fnHeaders(),
-          body: JSON.stringify({ username, email, context, image: imageDataUrl, prompt_override, model_override })
+          body: JSON.stringify({ username: username || undefined, email: email || undefined, context, image: imageDataUrl, prompt_override, model_override })
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.details || data.error || 'Error')
+        lastRating.rating_id = data.rating_id || null
+        lastRating.request_id = data.request_id || null
         function formatJustification(txt, improvements){
           try {
             if (!txt) return ''
@@ -187,14 +190,26 @@
             return out
           } catch (_) { return String(txt) }
         }
-        const formattedJust = formatJustification(data.justification, data.improvements)
+        const isUnclaimed = !data.masked_email
+        const formattedJust = isUnclaimed ? '' : formatJustification(data.justification, data.improvements)
         const hasFixesInJust = /Most impactful fixes:/i.test(String(data.justification||'')) || /TOTAL DESIGN POINTS/i.test(String(data.justification||''))
         $('result').innerHTML = `
           <div class="result">
             <h3>Grade: ${data.grade}/1000</h3>
             <div class="muted">Model: ${data.model} • ${data.latency_ms}ms</div>
-            <p>${formattedJust}</p>
-            ${hasFixesInJust ? '' : `<ul>${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}</ul>`}
+            ${isUnclaimed ? `
+              <div style="margin:10px 0; padding:10px; background:#fffbe6; border:1px solid #fde68a; border-radius:8px;">
+                <strong>Claim your review to reveal the full analysis</strong>
+                <div class="row" style="margin-top:8px;">
+                  <div><input id="claim_username" placeholder="your handle" value="${username||''}" /></div>
+                  <div><input id="claim_email" placeholder="you@example.com" value="${email||''}" /></div>
+                </div>
+                <div style="margin-top:8px;"><button class="btn primary" onclick="claimReview()">Save & reveal</button></div>
+              </div>
+            ` : `
+              <p>${formattedJust}</p>
+              ${hasFixesInJust ? '' : `<ul>${((data.improvements||[]).slice(0,2).map(function(it){ return `<li>${it}</li>` }).join(''))}</ul>`}
+            `}
           </div>
         `
         await loadLeaderboard()
@@ -202,6 +217,32 @@
         $('result').innerHTML = `<div class="result" style="border-color:#fecaca;background:#fff1f2;">Error: ${e.message}</div>`
       } finally {
         $('rateBtn').disabled = false
+      }
+    }
+
+    async function claimReview(){
+      const u = $('claim_username') ? $('claim_username').value.trim() : $('username').value.trim()
+      const m = $('claim_email') ? $('claim_email').value.trim() : $('email').value.trim()
+      if (!u || !m) { alert('Enter username and email to claim'); return }
+      try {
+        const res = await fetch(`${getFnUrl()}/claim`, {
+          method: 'POST',
+          headers: fnHeaders(),
+          body: JSON.stringify({ username: u, email: m, request_id: lastRating.request_id, rating_id: lastRating.rating_id })
+        })
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || 'Claim failed')
+        // Re-run leaderboard and prompt the user to re-rate to view the now-claimed review content
+        await loadLeaderboard()
+        // Simple UX: notify and ask to re-run to reveal (or we could store last response and re-render if we had kept it)
+        const info = document.createElement('div')
+        info.className = 'muted'
+        info.style.marginTop = '8px'
+        info.textContent = 'Saved. Run another rating or refresh to reveal future analyses automatically.'
+        const resBox = $('result')
+        if (resBox) resBox.appendChild(info)
+      } catch (e) {
+        alert(e.message)
       }
     }
 
