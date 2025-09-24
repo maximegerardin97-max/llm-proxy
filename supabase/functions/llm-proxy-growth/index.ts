@@ -134,7 +134,37 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // POST /rate - main entry
+    // POST /claim — attach username/email to an existing rating
+    if (req.method === 'POST' && path.includes('/claim')) {
+      let body: any
+      try { body = await req.json() } catch (_) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const { request_id, rating_id, username, email } = body || {}
+      if (!username || !email) {
+        return new Response(JSON.stringify({ error: 'username and email required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      if (!request_id && !rating_id) {
+        return new Response(JSON.stringify({ error: 'request_id or rating_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      let row: any = null
+      if (rating_id) {
+        const { data } = await supabase.from('growth_design_ratings').select('id, request_id').eq('id', rating_id).single()
+        row = data
+      } else if (request_id) {
+        const { data } = await supabase.from('growth_design_ratings').select('id, request_id').eq('request_id', request_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        row = data
+      }
+      if (!row) {
+        return new Response(JSON.stringify({ error: 'Rating not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const { error: upErr } = await supabase.from('growth_design_ratings').update({ username, email }).eq('id', row.id)
+      if (upErr) return new Response(JSON.stringify({ error: 'Failed to update rating' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      await supabase.from('growth_design_images').update({ username, email }).eq('rating_id', row.id)
+      return new Response(JSON.stringify({ success: true, rating_id: row.id, request_id: row.request_id }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // POST / (rate) - main entry
     if (req.method === 'POST') {
       let body: any
       try { body = await req.json() } catch (_) {
@@ -143,9 +173,6 @@ serve(async (req) => {
 
       const { username, email, context, prompt_override, model_override } = body || {}
       const image = body?.image // expect Data URL or base64 payload from client
-      if (!username || !email) {
-        return new Response(JSON.stringify({ error: 'username and email are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      }
       if (!image || typeof image !== 'string') {
         return new Response(JSON.stringify({ error: 'image is required (data URL/base64)' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
@@ -219,7 +246,7 @@ serve(async (req) => {
         systemPrompt += `\n\nHandbook reasoning (hidden):\n${handbookBullets}`
       }
       if (inspiration) { systemPrompt += inspiration }
-      systemPrompt += `\n\nHard rules (strict):\n- Output JSON only with keys: grade, justification, improvements.\n- grade is an integer 0–100.\n- justification MUST follow this exact multiline template with newlines preserved (no extra sections, no bullets unless shown):\n\nProduct: [X] | Industry: [Y] | Platform: [iOS/Android/Web/Desktop]\n\n⭐️ OVERALL DESIGN RATING: X/100 (average of 4 grades below)\n\n⭐️ Visual appeal: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Usability: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Navigation: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Business impact: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Most impactful fixes:\n✅ solution 1: …\n✅ solution 2: …\n\nRecommendation: short, no-BS justification\n\n👉 Flows to look at for inspiration → pick 1 flow from flows_index with exact name\n\nPunchline: 1 bold tweet-style hot take\n\n- Use roasty, lowercase tone and emojis as spice; do not greet or explain.\n- Newlines are required exactly as shown above.\n- Do NOT include any line starting with 'COMMAND:'.\n- improvements must be an array with exactly 2 specific, high‑impact items (these mirror the two ✅ lines above).`
+      systemPrompt += `\n\nHard rules (strict):\n- Output JSON only with keys: grade, justification, improvements.\n- grade is an integer 0–100.\n- justification MUST follow this exact multiline template with newlines preserved (no extra sections, no bullets unless shown):\n\nProduct: [X] | Industry: [Y] | Platform: [iOS/Android/Web/Desktop]\n\n⭐️ OVERALL DESIGN RATING: X/100 (average of 4 grades below)\n\n⭐️ Visual appeal: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Usability: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Navigation: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Business impact: X/100\n🔴 or 🟢 1-liner insight\n\n⭐️ Most impactful fixes:\n✅ solution 1: …\n✅ solution 2: …\n\nRecommendation: short, no-BS justification\n\n👉 Flows to look at for inspiration → pick 1 flow from flows_index with exact name\n\nPunchline: 1 bold tweet-style hot take\n\n- Use roasty, lowercase tone and emojis as spice; do not greet or explain.\n- Newlines are required exactly as shown above.\n- Do NOT include any line starting with 'COMMAND:'.\n- improvements must be an array with exactly 2 specific, high‑impact items (these mirror the two ✅ lines above).\n- If username/email are missing, still produce output; they will be attached later using request_id.`
 
       // Convert data URL image for OpenAI
       let imagePart: any = null
@@ -276,8 +303,8 @@ serve(async (req) => {
       const ipHash = hashIp(ip)
       const latency = Date.now() - start
       const { data: ins, error: insertError } = await supabase.from('growth_design_ratings').insert({
-        username,
-        email,
+        username: username || null,
+        email: email || null,
         design_storage_path: null,
         input_context: context || null,
         provider,
@@ -287,7 +314,7 @@ serve(async (req) => {
         improvements: JSON.stringify(improvements),
         latency_ms: latency,
         ip_hash: ipHash
-      }).select('id').single()
+      }).select('id, request_id').single()
       if (insertError) {
         console.error('Insert rating error:', insertError)
       }
@@ -297,8 +324,8 @@ serve(async (req) => {
         const trimmed = typeof image === 'string' && image.length > 1200000 ? image.slice(0, 1200000) : image
         await supabase.from('growth_design_images').insert({
           rating_id: ins?.id || null,
-          username,
-          email,
+          username: username || null,
+          email: email || null,
           image_data: trimmed
         })
       } catch (e) { console.error('Insert image error:', e) }
@@ -309,7 +336,9 @@ serve(async (req) => {
         improvements,
         model,
         latency_ms: latency,
-        masked_email: maskEmail(email)
+        masked_email: email ? maskEmail(email) : null,
+        rating_id: ins?.id || null,
+        request_id: ins?.request_id || null
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
