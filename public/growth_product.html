@@ -126,6 +126,16 @@
               .replace(/\r/g,'\n')
             // Keep arrow line with flows on same line (tolerant to spacing/case/extra text)
             out = out.replace(/\n+\s*👉\s*\n+\s*((?:flows?)\s*to\s*look\s*at\s*for\s*inspiration[^\n]*)/i, '\n👉 $1')
+            // Put TOTAL DESIGN POINTS on its own line
+            out = out.replace(/\s*(TOTAL DESIGN POINTS:\s*\d+\s*\(out of 1000\))/i, '<br>$1')
+            // Isolate quoted punchline on its own line
+            out = out.replace(/("|“)([^"”]+)("|”)/g, '<br>$1$2$3<br>')
+            // Ensure section headers are on their own line and emoji content on next line
+            var sections = ['Usability','Information architecture','Look & feel','Consistency','Business & conversion']
+            sections.forEach(function(name){
+              var re = new RegExp('(?:<br>\s*)?'+name.replace(/([.*+?^${}()|\[\]\\])/g,'\\$1')+'\s+(?=(👍|👎))','gi')
+              out = out.replace(re, '<br><br>'+name+' <br>')
+            })
             // Remove duplicate lines that repeat the two improvements
             try {
               function norm(s){
@@ -152,6 +162,8 @@
               .replace(/(?!^)✅/g, '<br>✅')
               .replace(/(?!^)🔴/g, '<br>🔴')
               .replace(/(?!^)🟢/g, '<br>🟢')
+              .replace(/(?!^)👍/g, '<br>👍')
+              .replace(/(?!^)👎/g, '<br>👎')
               .replace(/(?!^)👉/g, '<br>👉')
             // Add breaks before key labels if they appear inline
             out = out
@@ -167,7 +179,7 @@
           } catch (_) { return String(txt) }
         }
         const formattedJust = formatJustification(data.justification, data.improvements)
-        const hasFixesInJust = /Most impactful fixes:/i.test(String(data.justification||''))
+        const hasFixesInJust = /Most impactful fixes:/i.test(String(data.justification||'')) || /TOTAL DESIGN POINTS/i.test(String(data.justification||''))
         $('result').innerHTML = `
           <div class="result">
             <h3>Grade: ${data.grade}/1000</h3>
